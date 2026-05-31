@@ -6,6 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Lunex · Admin</title>
 <script src="security.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
 <style>
 html,body{background:#000!important;margin:0;padding:0;cursor:none!important;}
 *,*::before,*::after{box-sizing:border-box;cursor:none!important;}
@@ -232,7 +234,12 @@ if (!session) { window.location.href = 'login.html'; }
 document.getElementById('navUser').textContent = session.username;
 
 // ── STORAGE HELPERS ──────────────────────────────────────
-function getUsers()  { return JSON.parse(localStorage.getItem('lunex_users')  || '[]'); }
+let _serverUsers = [];
+function getUsers()  { return _serverUsers; }
+async function refreshUsers(){
+  try { _serverUsers = await LunexApp.getUsers(); }
+  catch(e) { _serverUsers = []; }
+}
 function getRoles()  { return JSON.parse(localStorage.getItem('lunex_roles2') || 'null') || getDefaultRoles(); }
 function saveRoles(r){ localStorage.setItem('lunex_roles2', JSON.stringify(r)); }
 function getAssign() { return JSON.parse(localStorage.getItem('lunex_assign') || '{}'); }
@@ -262,6 +269,9 @@ function getDefaultRoles() {
 // ── GET USER ROLE OBJECT ─────────────────────────────────
 function getUserRoleId(username) {
   if (username === SUPERADMIN) return 'superadmin';
+  // Prefer real server role
+  var u = (_serverUsers || []).find(function(x){ return x.username === username; });
+  if (u && u.role) return u.role;
   var assign = getAssign();
   return assign[username] || 'member';
 }
@@ -375,6 +385,11 @@ function assignRole(username, roleId) {
   var old = getUserRoleId(username);
   assign[username] = roleId;
   saveAssign(assign);
+  // Also push to server
+  if (window.LunexApp) {
+    LunexApp.setRole(username, roleId).then(() => refreshUsers().then(renderUsers))
+      .catch(e => alert('Server error: ' + e.message));
+  }
   addLog('<strong>' + session.username + '</strong> changed <strong>' + username + '</strong> role: <strong>' + old + '</strong> → <strong>' + roleId + '</strong>');
   showMsg('userMsg', username + ' is now ' + roleId, 'success');
   renderUsers();
@@ -572,7 +587,7 @@ function showMsg(id, text, type) {
 function logout() { localStorage.removeItem('lunex_session'); window.location.href = 'login.html'; }
 
 // ── INIT ─────────────────────────────────────────────────
-renderUsers();
+refreshUsers().then(renderUsers);
 
 // ── PARTICLES ────────────────────────────────────────────
 document.addEventListener('click', function(e){ for(var i=0;i<5;i++) spawnP(e.clientX,e.clientY); });

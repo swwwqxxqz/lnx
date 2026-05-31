@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Lunex · Login</title>
   <script src="security.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box;cursor:none!important;}
     html,body{background:#000 !important;}
@@ -310,30 +312,28 @@ function checkStrength(v){
 function showMsg(id,text,type){const el=document.getElementById(id);el.textContent=text;el.className='msg '+type+' show';}
 function clearMsg(id){const el=document.getElementById(id);el.className='msg';el.textContent='';}
 
-// ── Storage helpers ─────────────────────────────────────
-function getUsers(){return JSON.parse(localStorage.getItem('lunex_users')||'[]');}
-function saveUsers(u){localStorage.setItem('lunex_users',JSON.stringify(u));}
-function setSession(user){localStorage.setItem('lunex_session',JSON.stringify({username:user.username,email:user.email,joined:user.joined}));}
+// ── Storage helpers (legacy session shim) ───────────────
+function setSession(user){localStorage.setItem('lunex_session',JSON.stringify({username:user.username,email:user.email,joined:user.joined||new Date().toLocaleDateString()}));}
 
 // ── LOGIN ────────────────────────────────────────────────
-function handleLogin(e){
+async function handleLogin(e){
   e.preventDefault();
-  // Brute-force protection: max 5 attempts per 30s
   if(window.LunexSec){var rl=LunexSec.rateLimit('login_attempt',5,30000);if(!rl.ok){showMsg('loginMsg','Too many attempts. Wait '+Math.ceil(rl.retryIn/1000)+'s.','error');return;}}
   const ident=document.getElementById('loginUser').value.trim();
   const pass=document.getElementById('loginPass').value;
   if(!ident||!pass){showMsg('loginMsg','Please fill in all fields.','error');return;}
-  const users=getUsers();
-  const user=users.find(u=>u.username===ident||u.email===ident);
-  if(!user){showMsg('loginMsg','User not found.','error');return;}
-  if(user.password!==btoa(pass)){showMsg('loginMsg','Incorrect password.','error');return;}
-  showMsg('loginMsg','Welcome back, '+user.username+'!','success');
-  setSession(user);
-  setTimeout(()=>window.location.href='dashboard.html',1200);
+  showMsg('loginMsg','Signing in...','success');
+  try{
+    const user=await LunexApp.login(ident,pass);
+    showMsg('loginMsg','Welcome back, '+user.username+'!','success');
+    setTimeout(()=>window.location.href='dashboard.html',900);
+  }catch(err){
+    showMsg('loginMsg',err.message||'Login failed','error');
+  }
 }
 
 // ── REGISTER ─────────────────────────────────────────────
-function handleRegister(e){
+async function handleRegister(e){
   e.preventDefault();
   const username=document.getElementById('regUser').value.trim();
   const email=document.getElementById('regEmail').value.trim();
@@ -341,21 +341,19 @@ function handleRegister(e){
   const pass2=document.getElementById('regPass2').value;
 
   if(!username||!email||!pass||!pass2){showMsg('registerMsg','Please fill in all fields.','error');return;}
-  if(username.length<3){showMsg('registerMsg','Username must be at least 3 characters.','error');return;}
+  if(!/^[A-Za-z0-9_]{3,32}$/.test(username)){showMsg('registerMsg','Username 3-32 alphanumeric/_','error');return;}
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showMsg('registerMsg','Invalid email address.','error');return;}
   if(pass.length<6){showMsg('registerMsg','Password must be at least 6 characters.','error');return;}
   if(pass!==pass2){showMsg('registerMsg','Passwords do not match.','error');return;}
 
-  const users=getUsers();
-  if(users.find(u=>u.username===username)){showMsg('registerMsg','Username already taken.','error');return;}
-  if(users.find(u=>u.email===email)){showMsg('registerMsg','Email already registered.','error');return;}
-
-  const newUser={username,email,password:btoa(pass),joined:new Date().toLocaleDateString()};
-  users.push(newUser);
-  saveUsers(users);
-  showMsg('registerMsg','Account created! Redirecting...','success');
-  setSession(newUser);
-  setTimeout(()=>window.location.href='dashboard.html',1200);
+  showMsg('registerMsg','Creating account...','success');
+  try{
+    const user=await LunexApp.register(username,email,pass);
+    showMsg('registerMsg','Account created! Redirecting...','success');
+    setTimeout(()=>window.location.href='dashboard.html',900);
+  }catch(err){
+    showMsg('registerMsg',err.message||'Registration failed','error');
+  }
 }
 
 // ── Secret Code ───────────────────────────────────────────

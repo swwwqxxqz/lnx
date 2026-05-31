@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Lunex · Dashboard</title>
   <script src="security.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box;cursor:none!important;}
     html,body{background:#000 !important;}
@@ -191,6 +193,12 @@
 // ── Auth guard ───────────────────────────────────────────
 const session=JSON.parse(localStorage.getItem('lunex_session')||'null');
 if(!session) window.location.href='login.html';
+// Verify with server (real auth)
+LunexApp.loadMe().then(me => {
+  if (!me) { window.location.href = 'login.html'; return; }
+  // sync session with real server data
+  localStorage.setItem('lunex_session', JSON.stringify({ username: me.username, email: me.email, joined: new Date(me.created_at).toLocaleDateString() }));
+});
 
 // ── ROLES SYSTEM ─────────────────────────────────────────
 const SUPERADMIN='qqq';
@@ -270,7 +278,8 @@ function changePassword(e){
 
 // ── Logout ───────────────────────────────────────────────
 function logout(){
-  localStorage.removeItem('lunex_session');
+  if (window.LunexApp) LunexApp.logout();
+  else { localStorage.removeItem('lunex_session'); localStorage.removeItem('lunex_token'); }
   window.location.href='login.html';
 }
 

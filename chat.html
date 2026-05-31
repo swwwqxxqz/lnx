@@ -1,12 +1,439 @@
-﻿<!DOCTYPE html>
+﻿
+<!DOCTYPE html>
 <html lang="en" style="background:#000;color-scheme:dark;">
 <head>
 <meta charset="UTF-8"/>
-<meta http-equiv="refresh" content="0; url=realtime.html"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Lunex · Chat</title>
+<script src="security.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+<style>
+html,body{background:#000!important;margin:0;padding:0;}
+*{box-sizing:border-box;cursor:none!important;}
+body{font-family:'Segoe UI',sans-serif;background:#000!important;color:#fff;height:100vh;display:flex;flex-direction:column;overflow:hidden;cursor:none;}
+canvas{position:fixed;inset:0;z-index:0;background:#000!important;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 4px);pointer-events:none;z-index:1;}
+#cursor{width:20px;height:20px;border:2px solid #fff;border-radius:50%;position:fixed;pointer-events:none;transform:translate(-50%,-50%);transition:transform .12s,background .2s;z-index:9999;box-shadow:0 0 10px #fff,0 0 20px #fff;}
+#cursor-dot{width:5px;height:5px;background:#fff;border-radius:50%;position:fixed;pointer-events:none;transform:translate(-50%,-50%);z-index:9999;box-shadow:0 0 8px #fff;}
+
+nav{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:rgba(0,0,0,.95);border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;}
+.nav-logo{font-size:1.2rem;font-weight:900;letter-spacing:8px;text-transform:uppercase;color:#fff;text-shadow:0 0 10px #fff,0 0 30px rgba(255,255,255,.3);}
+.nav-links{display:flex;gap:20px;}
+.nav-links a{color:rgba(255,255,255,.35);text-decoration:none;font-size:.72rem;letter-spacing:3px;text-transform:uppercase;transition:color .2s,text-shadow .2s;}
+.nav-links a:hover,.nav-links a.active{color:#fff;text-shadow:0 0 8px #fff;}
+.nav-right{display:flex;align-items:center;gap:12px;}
+.nav-user{font-size:.72rem;letter-spacing:3px;color:rgba(255,255,255,.3);text-transform:uppercase;}
+.nav-user span{color:#fff;text-shadow:0 0 6px #fff;}
+.nav-badge{font-size:.55rem;letter-spacing:2px;padding:2px 8px;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.5);text-transform:uppercase;margin-left:6px;vertical-align:middle;}
+.live-pill{font-size:.55rem;letter-spacing:2px;color:rgba(0,255,100,.7);text-transform:uppercase;display:flex;align-items:center;gap:5px;margin-right:8px;}
+.live-pill .dot{width:6px;height:6px;border-radius:50%;background:#0f0;box-shadow:0 0 5px #0f0;animation:pulse 1.5s infinite;}
+@keyframes pulse{50%{opacity:.4;}}
+
+.chat-layout{display:flex;flex:1;overflow:hidden;position:relative;z-index:2;}
+
+.server-sidebar{width:240px;background:rgba(0,0,0,.85);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;}
+.server-header{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.server-name{font-size:.85rem;font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#fff;text-shadow:0 0 8px #fff;}
+.server-settings-btn{background:none;border:none;color:rgba(255,255,255,.3);font-size:1rem;transition:color .2s;padding:2px 6px;}
+.server-settings-btn:hover{color:#fff;}
+.channels-scroll{flex:1;overflow-y:auto;padding:8px 0 16px;}
+.channels-scroll::-webkit-scrollbar{width:3px;}
+.channels-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);}
+
+.category{margin-bottom:6px;}
+.category-header{display:flex;align-items:center;justify-content:space-between;padding:6px 12px 4px;}
+.category-name{font-size:.62rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.3);font-weight:700;}
+.category-add-btn{background:none;border:none;color:rgba(255,255,255,.2);font-size:1rem;padding:0 4px;line-height:1;transition:color .2s;}
+.category-add-btn:hover{color:#fff;}
+
+.channel-item{display:flex;align-items:center;gap:8px;padding:5px 8px 5px 16px;margin:1px 6px;border-radius:3px;transition:background .15s;position:relative;}
+.channel-item:hover{background:rgba(255,255,255,.05);}
+.channel-item.active{background:rgba(255,255,255,.08);}
+.channel-item.active .ch-name{color:#fff;text-shadow:0 0 6px rgba(255,255,255,.4);}
+.ch-icon{font-size:.85rem;color:rgba(255,255,255,.25);flex-shrink:0;width:16px;text-align:center;}
+.ch-name{font-size:.82rem;color:rgba(255,255,255,.45);flex:1;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .15s;}
+.channel-item:hover .ch-name{color:rgba(255,255,255,.8);}
+.ch-locked{font-size:.65rem;color:rgba(255,255,255,.2);}
+.ch-actions{display:none;gap:4px;position:absolute;right:8px;}
+.channel-item:hover .ch-actions{display:flex;}
+.ch-act-btn{background:none;border:none;color:rgba(255,255,255,.3);font-size:.75rem;padding:2px 4px;transition:color .2s;}
+.ch-act-btn:hover{color:#fff;}
+
+.users-sidebar{width:200px;background:rgba(0,0,0,.7);border-left:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;}
+.users-header{padding:14px 14px 10px;font-size:.6rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.2);border-bottom:1px solid rgba(255,255,255,.06);}
+.users-scroll{flex:1;overflow-y:auto;padding:8px 0;}
+.users-scroll::-webkit-scrollbar{width:3px;}
+.users-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);}
+.user-group-title{font-size:.58rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.2);padding:8px 14px 4px;}
+.user-entry{display:flex;align-items:center;gap:8px;padding:5px 14px;transition:background .15s;}
+.user-entry:hover{background:rgba(255,255,255,.04);}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;text-transform:uppercase;}
+.user-info{flex:1;min-width:0;}
+.user-name{font-size:.75rem;color:rgba(255,255,255,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.user-role-tag{font-size:.55rem;letter-spacing:1px;color:rgba(255,255,255,.25);}
+.user-status{width:8px;height:8px;border-radius:50%;background:#0f0;box-shadow:0 0 5px #0f0;flex-shrink:0;}
+.user-status.offline{background:rgba(255,255,255,.15);box-shadow:none;}
+
+.chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.chat-header{padding:12px 20px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:12px;flex-shrink:0;background:rgba(0,0,0,.5);}
+.chat-header-icon{font-size:1rem;color:rgba(255,255,255,.4);}
+.chat-header-name{font-size:.9rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#fff;text-shadow:0 0 8px #fff;}
+.chat-header-topic{font-size:.7rem;letter-spacing:1px;color:rgba(255,255,255,.3);margin-left:8px;padding-left:12px;border-left:1px solid rgba(255,255,255,.1);}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+.msg-count{font-size:.62rem;letter-spacing:2px;color:rgba(255,255,255,.2);text-transform:uppercase;}
+
+.messages{flex:1;overflow-y:auto;padding:20px 20px 8px;display:flex;flex-direction:column;gap:6px;}
+.messages::-webkit-scrollbar{width:4px;}
+.messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:2px;}
+.msg-group{display:flex;gap:12px;padding:4px 0;margin-bottom:4px;}
+.msg-avatar{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0;text-transform:uppercase;margin-top:2px;}
+.msg-body{flex:1;min-width:0;}
+.msg-meta{display:flex;align-items:baseline;gap:8px;margin-bottom:3px;}
+.msg-author{font-size:.82rem;font-weight:700;letter-spacing:1px;}
+.msg-time{font-size:.62rem;color:rgba(255,255,255,.2);}
+.msg-role-badge{font-size:.52rem;letter-spacing:2px;padding:1px 6px;border-radius:10px;border:1px solid;text-transform:uppercase;font-weight:700;}
+.msg-text{font-size:.85rem;line-height:1.65;color:rgba(255,255,255,.78);word-break:break-word;}
+.msg-text.action{color:rgba(255,255,255,.45);font-style:italic;}
+.system-msg{text-align:center;font-size:.62rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.18);padding:10px 0;margin:6px 0;display:flex;align-items:center;gap:12px;}
+.system-msg::before,.system-msg::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.06);}
+
+.typing-bar{padding:3px 20px;font-size:.62rem;letter-spacing:2px;color:rgba(255,255,255,.3);text-transform:uppercase;height:22px;flex-shrink:0;}
+.tdots span{animation:td 1s infinite;display:inline-block;}
+.tdots span:nth-child(2){animation-delay:.15s;}
+.tdots span:nth-child(3){animation-delay:.3s;}
+@keyframes td{0%,80%,100%{opacity:.2;transform:scale(.8);}40%{opacity:1;transform:scale(1.2);}}
+
+.input-area{padding:0 20px 14px;display:flex;gap:10px;align-items:flex-end;flex-shrink:0;}
+.input-wrap{flex:1;position:relative;}
+#msgInput{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#fff;padding:11px 50px 11px 14px;font-size:.88rem;outline:none;resize:none;font-family:inherit;line-height:1.5;max-height:120px;overflow-y:auto;transition:border-color .2s;}
+#msgInput:focus{border-color:rgba(255,255,255,.35);}
+#msgInput::placeholder{color:rgba(255,255,255,.18);}
+.char-count{position:absolute;bottom:9px;right:12px;font-size:.58rem;letter-spacing:1px;color:rgba(255,255,255,.18);}
+.send-btn{padding:11px 22px;background:transparent;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.6);font-size:.72rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;font-family:inherit;flex-shrink:0;height:44px;transition:all .2s;}
+.send-btn:hover{border-color:#fff;color:#fff;box-shadow:0 0 16px rgba(255,255,255,.12);}
+
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:center;justify-content:center;}
+.modal-bg.show{display:flex;}
+.modal{background:#0a0a0a;border:1px solid rgba(255,255,255,.12);padding:32px;width:100%;max-width:440px;position:relative;}
+.modal h2{font-size:.85rem;font-weight:900;letter-spacing:5px;text-transform:uppercase;color:#fff;text-shadow:0 0 8px #fff;margin-bottom:24px;}
+.modal-close{position:absolute;top:14px;right:16px;background:none;border:none;color:rgba(255,255,255,.3);font-size:1.2rem;}
+.modal-close:hover{color:#fff;}
+.field{margin-bottom:16px;}
+.field label{font-size:.62rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.3);display:block;margin-bottom:6px;}
+.field input,.field select{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:#fff;padding:10px 13px;font-size:.85rem;outline:none;font-family:inherit;width:100%;}
+.field input:focus,.field select:focus{border-color:rgba(255,255,255,.4);}
+.btn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+.btn{padding:9px 22px;font-size:.7rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;border:1px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.5);font-family:inherit;transition:all .2s;}
+.btn:hover{border-color:#fff;color:#fff;}
+.btn.primary{border-color:rgba(255,255,255,.5);color:#fff;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+.toggle-row label{font-size:.75rem;color:rgba(255,255,255,.6);margin:0;}
+.toggle{position:relative;width:38px;height:20px;flex-shrink:0;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;inset:0;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:20px;transition:all .2s;}
+.toggle-slider::before{content:'';position:absolute;width:14px;height:14px;left:2px;top:2px;background:rgba(255,255,255,.4);border-radius:50%;transition:all .2s;}
+.toggle input:checked + .toggle-slider{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.5);}
+.toggle input:checked + .toggle-slider::before{transform:translateX(18px);background:#fff;box-shadow:0 0 5px #fff;}
+</style>
 </head>
-<body style="background:#000;color:#fff;font-family:sans-serif;text-align:center;padding-top:40vh;">
-<p>Redirecting to live chat...</p>
-<script>window.location.replace('realtime.html');</script>
+<body style="background:#000;">
+<canvas id="starfield"></canvas>
+<div id="cursor"></div>
+<div id="cursor-dot"></div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<nav>
+  <div class="nav-logo">Lunex</div>
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="chat.html" class="active">Chat</a>
+    <a href="dm.html">DMs</a>
+    <a href="admin.html" id="adminLink" style="display:none;">⚡ Admin</a>
+  </div>
+  <div class="nav-right">
+    <div class="live-pill"><span class="dot"></span>Live</div>
+    <div class="nav-user">
+      <span id="navUser">—</span>
+      <span class="nav-badge" id="navBadge"></span>
+    </div>
+  </div>
+</nav>
+
+<div class="chat-layout">
+  <div class="server-sidebar">
+    <div class="server-header">
+      <div class="server-name">Lunex</div>
+      <button class="server-settings-btn" id="serverSettingsBtn" style="display:none;" onclick="openServerSettings()" title="Server Settings">⚙</button>
+    </div>
+    <div class="channels-scroll" id="channelsSidebar"></div>
+  </div>
+
+  <div class="chat-main">
+    <div class="chat-header">
+      <span class="chat-header-icon" id="chIcon">#</span>
+      <span class="chat-header-name" id="chName">general</span>
+      <span class="chat-header-topic" id="chTopic"></span>
+      <div class="header-right"><span class="msg-count" id="msgCount"></span></div>
+    </div>
+    <div class="messages" id="messages"></div>
+    <div class="typing-bar" id="typingBar"></div>
+    <div class="input-area">
+      <div class="input-wrap">
+        <textarea id="msgInput" rows="1" placeholder="Message..."></textarea>
+        <div class="char-count" id="charCount">0/2000</div>
+      </div>
+      <button class="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <div class="users-sidebar">
+    <div class="users-header">Members · <span id="onlineCount">0</span> online</div>
+    <div class="users-scroll" id="usersList"></div>
+  </div>
+</div>
+
+<script>
+// ── AUTH / BOOT ───────────────────────────────────────────
+let me, currentChannelId = 'general', channels = [], onlineSet = new Set(), allUsers = [], typingMap = {};
+
+(async function init(){
+  me = await LunexApp.loadMe();
+  if (!me) { window.location.href = 'login.html'; return; }
+  if (me.role === 'banned') {
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:rgba(255,80,80,.8);font-family:monospace;font-size:1rem;letter-spacing:4px;text-transform:uppercase;flex-direction:column;gap:16px;"><div>You are banned</div><a href="dashboard.html" style="color:rgba(255,255,255,.3);text-decoration:none;">Back</a></div>';
+    return;
+  }
+
+  document.getElementById('navUser').textContent = me.username;
+  const badge = document.getElementById('navBadge');
+  badge.textContent = me.role.toUpperCase();
+  if (me.role === 'superadmin' || me.role === 'admin') {
+    document.getElementById('adminLink').style.display = 'inline';
+    document.getElementById('serverSettingsBtn').style.display = 'block';
+  }
+
+  LunexApp.connect();
+  LunexApp.on('message', m => { if (m.channel_id === currentChannelId) renderMessages(); });
+  LunexApp.on('online', list => { onlineSet = new Set(list); renderUsers(); renderSidebar(); });
+  LunexApp.on('channel-created', () => loadChannels());
+  LunexApp.on('channel-updated', () => loadChannels());
+  LunexApp.on('channel-deleted', (id) => { if (id === currentChannelId) currentChannelId = 'general'; loadChannels(); });
+  LunexApp.on('typing', d => {
+    if (d.channelId !== currentChannelId || d.username === me.username) return;
+    typingMap[d.username] = Date.now(); renderTyping();
+  });
+
+  await loadChannels();
+  await loadUsers();
+  await switchChannel('general');
+})();
+
+async function loadChannels(){
+  channels = await LunexApp.getChannels();
+  renderSidebar();
+}
+
+async function loadUsers(){
+  allUsers = await LunexApp.getUsers();
+  renderUsers();
+}
+
+function renderSidebar(){
+  const sb = document.getElementById('channelsSidebar');
+  sb.innerHTML = '';
+  // Group by category
+  const groups = {};
+  channels.forEach(c => {
+    const cat = c.category || 'General';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(c);
+  });
+  Object.keys(groups).forEach(catName => {
+    const cat = document.createElement('div');
+    cat.className = 'category';
+    const isAdmin = me.role === 'superadmin' || me.role === 'admin';
+    cat.innerHTML = '<div class="category-header"><span class="category-name">' + esc(catName) + '</span>' +
+      (isAdmin ? '<button class="category-add-btn" onclick="openAddChannel(\'' + escAttr(catName) + '\')">+</button>' : '') + '</div>';
+    groups[catName].forEach(ch => {
+      if (ch.admin_only && !isAdmin) return;
+      const item = document.createElement('div');
+      item.className = 'channel-item' + (ch.id === currentChannelId ? ' active' : '');
+      const lock = ch.admin_only ? '<span class="ch-locked">🔒</span>' : '';
+      const actions = isAdmin ? '<span class="ch-actions"><button class="ch-act-btn" onclick="event.stopPropagation();openEditChannel(\'' + ch.id + '\')">✏</button><button class="ch-act-btn" onclick="event.stopPropagation();delChannel(\'' + ch.id + '\')">✕</button></span>' : '';
+      item.innerHTML = '<span class="ch-icon">#</span><span class="ch-name">' + esc(ch.name) + '</span>' + lock + actions;
+      item.onclick = () => switchChannel(ch.id);
+      cat.appendChild(item);
+    });
+    sb.appendChild(cat);
+  });
+}
+
+async function switchChannel(id){
+  LunexApp.leaveChannel(currentChannelId);
+  currentChannelId = id;
+  LunexApp.joinChannel(id);
+  const ch = channels.find(c => c.id === id);
+  if (ch){
+    document.getElementById('chName').textContent = ch.name;
+    document.getElementById('chTopic').textContent = ch.topic || '';
+    document.getElementById('msgInput').placeholder = 'Message #' + ch.name + '...';
+  }
+  renderSidebar();
+  await renderMessages();
+}
+
+async function renderMessages(){
+  const msgs = await LunexApp.getMessages(currentChannelId, 200);
+  const box = document.getElementById('messages');
+  const atBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 100;
+  document.getElementById('msgCount').textContent = msgs.length + ' msgs';
+  if (!msgs.length){ box.innerHTML = '<div class="system-msg">No messages yet</div>'; return; }
+
+  let html = ''; let lastDate = '';
+  msgs.forEach(m => {
+    const t = new Date(m.ts);
+    const ts = String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+    const ds = t.toLocaleDateString();
+    if (ds !== lastDate){ html += '<div class="system-msg">'+ds+'</div>'; lastDate = ds; }
+    const role = (allUsers.find(u => u.username === m.author) || {}).role || 'member';
+    const color = roleColor(role);
+    html += '<div class="msg-group"><div class="msg-avatar" style="color:'+color+'">'+m.author.charAt(0).toUpperCase()+'</div>';
+    html += '<div class="msg-body"><div class="msg-meta">';
+    html += '<span class="msg-author" style="color:'+color+'">'+esc(m.author)+'</span>';
+    html += '<span class="msg-time">'+ts+'</span>';
+    html += '<span class="msg-role-badge" style="color:'+color+';border-color:'+color+'44">'+role+'</span>';
+    html += '</div><div class="msg-text'+(m.action?' action':'')+'">'+esc(m.text)+'</div></div></div>';
+  });
+  box.innerHTML = html;
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function roleColor(role){
+  return { superadmin:'#fff', admin:'#e0e0e0', moderator:'#aaa', vip:'#888', member:'#777', banned:'#f44' }[role] || '#777';
+}
+
+function renderUsers(){
+  const list = document.getElementById('usersList');
+  list.innerHTML = '';
+  document.getElementById('onlineCount').textContent = onlineSet.size;
+  const onlineUsers = allUsers.filter(u => onlineSet.has(u.username));
+  const offlineUsers = allUsers.filter(u => !onlineSet.has(u.username));
+  if (onlineUsers.length){
+    list.innerHTML += '<div class="user-group-title">Online — '+onlineUsers.length+'</div>';
+    onlineUsers.forEach(u => list.innerHTML += userHtml(u, true));
+  }
+  if (offlineUsers.length){
+    list.innerHTML += '<div class="user-group-title">Offline — '+offlineUsers.length+'</div>';
+    offlineUsers.forEach(u => list.innerHTML += userHtml(u, false));
+  }
+}
+function userHtml(u, online){
+  const c = roleColor(u.role);
+  return '<div class="user-entry"><div class="user-avatar" style="color:'+c+';border-color:'+c+'44">'+u.username.charAt(0).toUpperCase()+'</div>' +
+    '<div class="user-info"><div class="user-name" style="color:'+(online?'#fff':'rgba(255,255,255,.4)')+'">'+esc(u.username)+'</div>' +
+    '<div class="user-role-tag" style="color:'+c+'">'+u.role+'</div></div>' +
+    '<div class="user-status'+(online?'':' offline')+'"></div></div>';
+}
+
+// ── SEND ──────────────────────────────────────────────────
+async function sendMessage(){
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if (!text) return;
+  if (text.startsWith('/me ')){ await trySend(text.slice(4).trim(), true); input.value=''; input.style.height='auto'; return; }
+  await trySend(text, false);
+  input.value = ''; input.style.height = 'auto'; document.getElementById('charCount').textContent = '0/2000';
+}
+async function trySend(text, action){
+  try { await LunexApp.sendMessage(currentChannelId, text, action); }
+  catch (e) { document.getElementById('typingBar').innerHTML = '<span style="color:rgba(255,80,80,.8)">⚠ '+e+'</span>'; }
+}
+
+document.getElementById('msgInput').addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }});
+document.getElementById('msgInput').addEventListener('input', function(){
+  this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,120)+'px';
+  document.getElementById('charCount').textContent = this.value.length+'/2000';
+  LunexApp.typing(currentChannelId);
+});
+
+function renderTyping(){
+  const now = Date.now();
+  Object.keys(typingMap).forEach(u => { if (now - typingMap[u] > 2500) delete typingMap[u]; });
+  const users = Object.keys(typingMap);
+  const el = document.getElementById('typingBar');
+  if (!users.length){ el.innerHTML = ''; return; }
+  el.innerHTML = users.join(', ') + ' typing <span class="tdots"><span>.</span><span>.</span><span>.</span></span>';
+}
+setInterval(renderTyping, 1000);
+
+// ── MODALS ────────────────────────────────────────────────
+function openModal(html){ document.getElementById('modalContent').innerHTML = html; document.getElementById('modalBg').classList.add('show'); }
+function closeModal(){ document.getElementById('modalBg').classList.remove('show'); }
+document.getElementById('modalBg').addEventListener('click', e => { if (e.target.id === 'modalBg') closeModal(); });
+
+function openAddChannel(category){
+  openModal('<h2>Add Channel</h2>' +
+    '<div class="field"><label>Name</label><input type="text" id="newChName" placeholder="announcements"/></div>' +
+    '<div class="field"><label>Topic</label><input type="text" id="newChTopic" placeholder="Topic..."/></div>' +
+    '<div class="toggle-row"><label>Admin Only</label><label class="toggle"><input type="checkbox" id="newChAdmin"/><span class="toggle-slider"></span></label></div>' +
+    '<div class="btn-row"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="doAddChannel(\'' + escAttr(category) + '\')">Create</button></div>');
+}
+async function doAddChannel(category){
+  const name = document.getElementById('newChName').value.trim();
+  const topic = document.getElementById('newChTopic').value.trim();
+  const admin_only = document.getElementById('newChAdmin').checked;
+  if (!name) return;
+  try { await LunexApp.createChannel({ name, topic, admin_only, category }); closeModal(); }
+  catch (e) { alert('Error: ' + e.message); }
+}
+function openEditChannel(id){
+  const ch = channels.find(c => c.id === id); if (!ch) return;
+  openModal('<h2>Edit Channel</h2>' +
+    '<div class="field"><label>Name</label><input type="text" id="editChName" value="'+escAttr(ch.name)+'"/></div>' +
+    '<div class="field"><label>Topic</label><input type="text" id="editChTopic" value="'+escAttr(ch.topic||'')+'"/></div>' +
+    '<div class="toggle-row"><label>Admin Only</label><label class="toggle"><input type="checkbox" id="editChAdmin"'+(ch.admin_only?' checked':'')+'/><span class="toggle-slider"></span></label></div>' +
+    '<div class="btn-row"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="doEditChannel(\''+id+'\')">Save</button></div>');
+}
+async function doEditChannel(id){
+  try {
+    await LunexApp.updateChannel(id, {
+      name: document.getElementById('editChName').value.trim(),
+      topic: document.getElementById('editChTopic').value.trim(),
+      admin_only: document.getElementById('editChAdmin').checked
+    });
+    closeModal();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+async function delChannel(id){
+  if (!confirm('Delete this channel and all its messages?')) return;
+  try { await LunexApp.deleteChannel(id); } catch (e) { alert('Error: ' + e.message); }
+}
+function openServerSettings(){ alert('Server settings: use the Admin panel to manage roles & users.'); }
+
+// ── HELPERS ───────────────────────────────────────────────
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+function escAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// ── CURSOR ────────────────────────────────────────────────
+const cursor=document.getElementById('cursor'),cursorDot=document.getElementById('cursor-dot');
+let mx=0,my=0,cx=0,cy=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cursorDot.style.left=mx+'px';cursorDot.style.top=my+'px';});
+(function ac(){cx+=(mx-cx)*.18;cy+=(my-cy)*.18;cursor.style.left=cx+'px';cursor.style.top=cy+'px';requestAnimationFrame(ac);})();
+
+// ── STARFIELD ────────────────────────────────────────────
+const canvas=document.getElementById('starfield'),ctx=canvas.getContext('2d');
+let stars=[],W,H;
+function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);}
+resize();window.addEventListener('resize',resize);
+for(let i=0;i<120;i++)stars.push({x:Math.random()*2000-1000,y:Math.random()*2000-1000,z:Math.random()*1000});
+(function ds(){ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);stars.forEach(s=>{s.z-=1.2;if(s.z<=0){s.z=1000;s.x=Math.random()*2000-1000;s.y=Math.random()*2000-1000;}const sx=(s.x/s.z)*W+W/2,sy=(s.y/s.z)*H+H/2,r=Math.max(.1,(1-s.z/1000)*2),al=1-s.z/1000;ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+al+')';ctx.fill();});requestAnimationFrame(ds);})();
+</script>
 </body>
 </html>

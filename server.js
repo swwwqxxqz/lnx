@@ -36,6 +36,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     topic TEXT DEFAULT '',
+    category TEXT DEFAULT 'General',
     admin_only INTEGER DEFAULT 0,
     created_at INTEGER NOT NULL
   );
@@ -60,14 +61,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_dm_pair ON dms(pair_key, ts);
 `);
 
+// Migration: add `category` column if missing (for upgrades)
+try { db.exec(`ALTER TABLE channels ADD COLUMN category TEXT DEFAULT 'General'`); } catch (e) { /* already exists */ }
+
 // Seed default channels
 const seedChannels = [
-  { id: 'general', name: 'general', topic: 'General discussion', admin_only: 0 },
-  { id: 'lunex',   name: 'lunex',   topic: 'About Lunex',         admin_only: 0 },
-  { id: 'random',  name: 'random',  topic: 'Random stuff',         admin_only: 0 }
+  { id: 'general', name: 'general', topic: 'General discussion', category: 'Text Channels', admin_only: 0 },
+  { id: 'lunex',   name: 'lunex',   topic: 'About Lunex',         category: 'Text Channels', admin_only: 0 },
+  { id: 'random',  name: 'random',  topic: 'Random stuff',         category: 'Community',     admin_only: 0 },
+  { id: 'help',    name: 'help',    topic: 'Need help?',           category: 'Community',     admin_only: 0 },
+  { id: 'admin-chat', name: 'admin-chat', topic: 'Admin only',     category: 'Admin',         admin_only: 1 }
 ];
-const insertCh = db.prepare('INSERT OR IGNORE INTO channels (id, name, topic, admin_only, created_at) VALUES (?, ?, ?, ?, ?)');
-seedChannels.forEach(c => insertCh.run(c.id, c.name, c.topic, c.admin_only, Date.now()));
+const insertCh = db.prepare('INSERT OR IGNORE INTO channels (id, name, topic, category, admin_only, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+seedChannels.forEach(c => insertCh.run(c.id, c.name, c.topic, c.category, c.admin_only, Date.now()));
 
 // ── Express app ───────────────────────────────────────────
 const app = express();
@@ -152,8 +158,10 @@ app.get('/api/me', authMiddleware, (req, res) => {
 
 // ── Users (list) ──────────────────────────────────────────
 app.get('/api/users', authMiddleware, (req, res) => {
-  const users = db.prepare('SELECT id, username, role, created_at FROM users ORDER BY username').all();
-  res.json(users);
+  const users = db.prepare('SELECT id, username, email, role, created_at FROM users ORDER BY username').all();
+  // Map for compatibility with admin UI
+  const mapped = users.map(u => ({ ...u, joined: new Date(u.created_at).toLocaleDateString() }));
+  res.json(mapped);
 });
 
 // ── Channels ──────────────────────────────────────────────
@@ -163,15 +171,58 @@ app.get('/api/channels', authMiddleware, (req, res) => {
 
 app.post('/api/channels', authMiddleware, (req, res) => {
   if (req.user.role !== 'superadmin' && req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const { name, topic, admin_only } = req.body || {};
+  const { name, topic, admin_only, category } = req.body || {};
   const cleanName = sanitize(name, 32);
   if (!cleanName) return res.status(400).json({ error: 'Invalid channel name' });
   const id = 'ch_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-  db.prepare('INSERT INTO channels (id, name, topic, admin_only, created_at) VALUES (?, ?, ?, ?, ?)')
-    .run(id, cleanName, sanitize(topic, 200) || '', admin_only ? 1 : 0, Date.now());
+  db.prepare('INSERT INTO channels (id, name, topic, category, admin_only, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, cleanName, sanitize(topic, 200) || '', sanitize(category, 32) || 'General', admin_only ? 1 : 0, Date.now());
   const ch = db.prepare('SELECT * FROM channels WHERE id = ?').get(id);
   io.emit('channel:created', ch);
   res.json(ch);
+});
+
+// Edit channel
+app.patch('/api/channels/:id', authMiddleware, (req, res) => {
+  if (req.user.role !== 'superadmin' && req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const ch = db.prepare('SELECT * FROM channels WHERE id = ?').get(req.params.id);
+  if (!ch) return res.status(404).json({ error: 'Not found' });
+  const name = sanitize(req.body.name, 32) || ch.name;
+  const topic = sanitize(req.body.topic, 200) || '';
+  const category = sanitize(req.body.category, 32) || ch.category || 'General';
+  const admin_only = req.body.admin_only ? 1 : 0;
+  db.prepare('UPDATE channels SET name=?, topic=?, category=?, admin_only=? WHERE id=?').run(name, topic, category, admin_only, ch.id);
+  const updated = db.prepare('SELECT * FROM channels WHERE id = ?').get(ch.id);
+  io.emit('channel:updated', updated);
+  res.json(updated);
+});
+
+// Delete channel
+app.delete('/api/channels/:id', authMiddleware, (req, res) => {
+  if (req.user.role !== 'superadmin' && req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  db.prepare('DELETE FROM messages WHERE channel_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM channels WHERE id = ?').run(req.params.id);
+  io.emit('channel:deleted', req.params.id);
+  res.json({ ok: true });
+});
+
+// DM partners list
+app.get('/api/dm-partners', authMiddleware, (req, res) => {
+  const me = req.user.username;
+  const rows = db.prepare(`
+    SELECT pair_key, MAX(ts) as last_ts, (
+      SELECT text FROM dms d2 WHERE d2.pair_key = dms.pair_key ORDER BY ts DESC LIMIT 1
+    ) as last_text, (
+      SELECT encrypted FROM dms d3 WHERE d3.pair_key = dms.pair_key ORDER BY ts DESC LIMIT 1
+    ) as last_encrypted
+    FROM dms WHERE pair_key LIKE ? OR pair_key LIKE ?
+    GROUP BY pair_key ORDER BY last_ts DESC
+  `).all(me + ':%', '%:' + me);
+  const partners = rows.map(r => {
+    const [a, b] = r.pair_key.split(':');
+    return { partner: a === me ? b : a, last_ts: r.last_ts, last_text: r.last_text, last_encrypted: r.last_encrypted };
+  });
+  res.json(partners);
 });
 
 // ── Message history ───────────────────────────────────────
