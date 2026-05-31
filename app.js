@@ -118,6 +118,11 @@ window.LunexApp = (function () {
     mute: (username, minutes, reason) => api('/api/admin/mute', { method: 'POST', body: { username, minutes, reason } }),
     unmute: (username) => api('/api/admin/unmute', { method: 'POST', body: { username } }),
     getMutes: () => api('/api/mutes'),
+    redeemCode: async (code) => {
+      const data = await api('/api/redeem-code', { method: 'POST', body: { code } });
+      if (data.token) { token = data.token; localStorage.setItem('lunex_token', token); if (me) me.role = data.role; }
+      return data;
+    },
     loginAs: async (username) => {
       const data = await api('/api/admin/login-as', { method: 'POST', body: { username } });
       // swap to the impersonated session

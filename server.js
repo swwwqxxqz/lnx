@@ -324,6 +324,21 @@ app.post('/api/admin/login-as', authMiddleware, (req, res) => {
   res.json({ token: tokenForTarget, user: { id: target.id, username: target.username, email: target.email, role: target.role } });
 });
 
+// ── Redeem secret code → become superadmin ───────────────
+// Set ROOT_CODE in env (Render → Environment) to change it. Defaults to 1122.
+const ROOT_CODE = process.env.ROOT_CODE || '1122';
+app.post('/api/redeem-code', authMiddleware, writeLimiter, (req, res) => {
+  const { code } = req.body || {};
+  if (typeof code !== 'string' || code !== ROOT_CODE) {
+    return res.status(403).json({ error: 'Invalid code' });
+  }
+  db.prepare('UPDATE users SET role = ? WHERE username = ?').run('superadmin', req.user.username);
+  io.emit('user:role-changed', { username: req.user.username, role: 'superadmin' });
+  // issue a fresh token carrying the new role
+  const fresh = signToken({ id: req.user.id, username: req.user.username, role: 'superadmin' });
+  res.json({ ok: true, token: fresh, role: 'superadmin' });
+});
+
 function isMuted(username) {
   const m = db.prepare('SELECT until FROM mutes WHERE username = ?').get(username);
   if (!m) return false;
