@@ -365,6 +365,10 @@ function renderUsers() {
     } else if (canEdit && rid === 'banned') {
       actions += '<button class="btn" onclick="unbanUser(\'' + u.username + '\')">Unban</button>';
     }
+    if (canEdit && !isMe) {
+      actions += '<button class="btn" onclick="muteUserAdmin(\'' + u.username + '\')">🔇 Mute</button>';
+      actions += '<button class="btn" onclick="unmuteUserAdmin(\'' + u.username + '\')">🔊</button>';
+    }
     if (isMe) actions += '<span style="font-size:.58rem;letter-spacing:2px;color:rgba(255,255,255,.2);text-transform:uppercase;margin-left:6px;">YOU</span>';
     if (isSuperadmin) actions += '<span style="font-size:.58rem;letter-spacing:2px;color:rgba(255,255,255,.5);text-transform:uppercase;margin-left:6px;">⚡ OWNER</span>';
 
@@ -403,6 +407,22 @@ function banUser(u) {
 function unbanUser(u) {
   assignRole(u, 'member');
   addLog('<strong>' + session.username + '</strong> unbanned <strong>' + u + '</strong>');
+}
+function muteUserAdmin(u) {
+  var mins = prompt('Mute ' + u + ' for how many minutes?', '5');
+  if (!mins) return;
+  if (window.LunexApp) {
+    LunexApp.mute(u, parseInt(mins) || 5, 'Muted by ' + session.username)
+      .then(() => { showMsg('userMsg', u + ' muted for ' + mins + ' min', 'success'); addLog('<strong>'+session.username+'</strong> muted <strong>'+u+'</strong> ('+mins+'m)'); })
+      .catch(e => showMsg('userMsg', 'Error: ' + e.message, 'error'));
+  }
+}
+function unmuteUserAdmin(u) {
+  if (window.LunexApp) {
+    LunexApp.unmute(u)
+      .then(() => { showMsg('userMsg', u + ' unmuted', 'success'); addLog('<strong>'+session.username+'</strong> unmuted <strong>'+u+'</strong>'); })
+      .catch(e => showMsg('userMsg', 'Error: ' + e.message, 'error'));
+  }
 }
 
 // ── ROLE LIST ────────────────────────────────────────────

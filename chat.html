@@ -95,6 +95,15 @@ nav{position:relative;z-index:10;display:flex;align-items:center;justify-content
 .msg-role-badge{font-size:.52rem;letter-spacing:2px;padding:1px 6px;border-radius:10px;border:1px solid;text-transform:uppercase;font-weight:700;}
 .msg-text{font-size:.85rem;line-height:1.65;color:rgba(255,255,255,.78);word-break:break-word;}
 .msg-text.action{color:rgba(255,255,255,.45);font-style:italic;}
+.msg-group{position:relative;}
+.msg-reactions{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;}
+.react-pill{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:2px 8px;font-size:.75rem;transition:all .15s;display:inline-flex;align-items:center;gap:3px;}
+.react-pill:hover{background:rgba(255,255,255,.12);}
+.react-pill.mine{border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.1);}
+.react-bar{position:absolute;top:-14px;right:12px;display:none;gap:2px;background:rgba(0,0,0,.95);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:3px 6px;z-index:20;}
+.msg-group:hover .react-bar{display:flex;}
+.react-add{background:none;border:none;font-size:.95rem;padding:2px 3px;transition:transform .15s;opacity:.65;}
+.react-add:hover{transform:scale(1.35);opacity:1;}
 .system-msg{text-align:center;font-size:.62rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.18);padding:10px 0;margin:6px 0;display:flex;align-items:center;gap:12px;}
 .system-msg::before,.system-msg::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.06);}
 
@@ -225,6 +234,9 @@ let me, currentChannelId = 'general', channels = [], onlineSet = new Set(), allU
   LunexApp.on('channel-created', () => loadChannels());
   LunexApp.on('channel-updated', () => loadChannels());
   LunexApp.on('channel-deleted', (id) => { if (id === currentChannelId) currentChannelId = 'general'; loadChannels(); });
+  LunexApp.on('reaction', () => renderMessages());
+  LunexApp.on('muted', d => { if (d.username === me.username) showMuted(d.until); });
+  LunexApp.on('unmuted', d => { if (d.username === me.username) clearMuted(); });
   LunexApp.on('typing', d => {
     if (d.channelId !== currentChannelId || d.username === me.username) return;
     typingMap[d.username] = Date.now(); renderTyping();
@@ -233,6 +245,7 @@ let me, currentChannelId = 'general', channels = [], onlineSet = new Set(), allU
   await loadChannels();
   await loadUsers();
   await switchChannel('general');
+  checkMyMute();
 })();
 
 async function loadChannels(){
@@ -304,15 +317,39 @@ async function renderMessages(){
     if (ds !== lastDate){ html += '<div class="system-msg">'+ds+'</div>'; lastDate = ds; }
     const role = (allUsers.find(u => u.username === m.author) || {}).role || 'member';
     const color = roleColor(role);
-    html += '<div class="msg-group"><div class="msg-avatar" style="color:'+color+'">'+m.author.charAt(0).toUpperCase()+'</div>';
+    html += '<div class="msg-group" data-mid="'+m.id+'"><div class="msg-avatar" style="color:'+color+'">'+m.author.charAt(0).toUpperCase()+'</div>';
     html += '<div class="msg-body"><div class="msg-meta">';
     html += '<span class="msg-author" style="color:'+color+'">'+esc(m.author)+'</span>';
     html += '<span class="msg-time">'+ts+'</span>';
     html += '<span class="msg-role-badge" style="color:'+color+';border-color:'+color+'44">'+role+'</span>';
-    html += '</div><div class="msg-text'+(m.action?' action':'')+'">'+esc(m.text)+'</div></div></div>';
+    html += '</div><div class="msg-text'+(m.action?' action':'')+'">'+esc(m.text)+'</div>';
+    // reaction pills
+    html += '<div class="msg-reactions">' + renderReactionPills(m) + '</div>';
+    // hover reaction picker
+    html += '<div class="react-bar">';
+    ['👍','❤️','😂','🔥','💀','✨'].forEach(e => { html += '<button class="react-add" onclick="react('+m.id+',\''+e+'\')">'+e+'</button>'; });
+    html += '</div>';
+    html += '</div></div>';
   });
   box.innerHTML = html;
   if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function renderReactionPills(m){
+  const reacts = m.reactions || {};
+  let out = '';
+  Object.keys(reacts).forEach(e => {
+    const users = reacts[e];
+    if (!users.length) return;
+    const mine = users.indexOf(me.username) > -1;
+    out += '<span class="react-pill'+(mine?' mine':'')+'" title="'+esc(users.join(', '))+'" onclick="react('+m.id+',\''+e+'\')">'+e+' '+users.length+'</span>';
+  });
+  return out;
+}
+
+async function react(messageId, emoji){
+  try { await LunexApp.toggleReaction(messageId, emoji, currentChannelId); }
+  catch(e) { console.error('react failed', e); }
 }
 
 function roleColor(role){
@@ -353,7 +390,34 @@ async function sendMessage(){
 }
 async function trySend(text, action){
   try { await LunexApp.sendMessage(currentChannelId, text, action); }
-  catch (e) { document.getElementById('typingBar').innerHTML = '<span style="color:rgba(255,80,80,.8)">⚠ '+e+'</span>'; }
+  catch (e) { document.getElementById('typingBar').innerHTML = '<span style="color:rgba(255,80,80,.8)">⚠ '+e+'</span>'; if (String(e).indexOf('muted')>-1) checkMyMute(); }
+}
+
+// ── MUTE state ────────────────────────────────────────────
+let muteTimer = null;
+async function checkMyMute(){
+  try {
+    const mutes = await LunexApp.getMutes();
+    const mine = mutes.find(m => m.username === me.username);
+    if (mine && mine.until > Date.now()) showMuted(mine.until);
+    else clearMuted();
+  } catch(e) {}
+}
+function showMuted(until){
+  const input = document.getElementById('msgInput');
+  input.disabled = true;
+  const left = Math.max(0, Math.ceil((until - Date.now())/60000));
+  input.placeholder = '🔇 You are muted (' + left + ' min left)';
+  document.querySelector('.send-btn').style.opacity = '.3';
+  clearTimeout(muteTimer);
+  muteTimer = setTimeout(clearMuted, until - Date.now());
+}
+function clearMuted(){
+  const input = document.getElementById('msgInput');
+  input.disabled = false;
+  input.placeholder = 'Message #' + (channels.find(c=>c.id===currentChannelId)||{name:''}).name + '...';
+  document.querySelector('.send-btn').style.opacity = '1';
+  clearTimeout(muteTimer);
 }
 
 document.getElementById('msgInput').addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }});

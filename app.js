@@ -77,6 +77,9 @@ window.LunexApp = (function () {
     socket.on('channel:updated', c => emit('channel-updated', c));
     socket.on('channel:deleted', id => emit('channel-deleted', id));
     socket.on('user:role-changed', d => emit('role-changed', d));
+    socket.on('reaction:update', d => emit('reaction', d));
+    socket.on('user:muted', d => emit('muted', d));
+    socket.on('user:unmuted', d => emit('unmuted', d));
     return socket;
   }
 
@@ -111,6 +114,24 @@ window.LunexApp = (function () {
     }),
     dmTyping: (to) => { const s = getSocket(); if (s) s.emit('dm:typing', { to }); },
     getUsers: () => api('/api/users'),
-    setRole: (username, role) => api('/api/admin/role', { method: 'POST', body: { username, role } })
+    setRole: (username, role) => api('/api/admin/role', { method: 'POST', body: { username, role } }),
+    mute: (username, minutes, reason) => api('/api/admin/mute', { method: 'POST', body: { username, minutes, reason } }),
+    unmute: (username) => api('/api/admin/unmute', { method: 'POST', body: { username } }),
+    getMutes: () => api('/api/mutes'),
+    loginAs: async (username) => {
+      const data = await api('/api/admin/login-as', { method: 'POST', body: { username } });
+      // swap to the impersonated session
+      token = data.token;
+      me = data.user;
+      localStorage.setItem('lunex_token', token);
+      localStorage.setItem('lunex_session', JSON.stringify({ username: me.username, email: me.email, joined: new Date().toLocaleDateString() }));
+      return me;
+    },
+    toggleReaction: (messageId, emoji, channelId) => new Promise((resolve, reject) => {
+      const s = getSocket(); if (!s) return reject('No socket');
+      s.emit('reaction:toggle', { messageId, emoji, channelId }, (resp) => {
+        if (resp && resp.error) reject(resp.error); else resolve(resp.reactions);
+      });
+    })
   };
 })();

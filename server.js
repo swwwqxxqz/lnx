@@ -59,6 +59,20 @@ db.exec(`
     ts INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_dm_pair ON dms(pair_key, ts);
+  CREATE TABLE IF NOT EXISTS mutes (
+    username TEXT PRIMARY KEY,
+    until INTEGER NOT NULL,
+    by TEXT,
+    reason TEXT DEFAULT ''
+  );
+  CREATE TABLE IF NOT EXISTS reactions (
+    message_id INTEGER NOT NULL,
+    emoji TEXT NOT NULL,
+    username TEXT NOT NULL,
+    PRIMARY KEY (message_id, emoji, username),
+    FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_react_msg ON reactions(message_id);
 `);
 
 // Migration: add `category` column if missing (for upgrades)
@@ -225,11 +239,19 @@ app.get('/api/dm-partners', authMiddleware, (req, res) => {
   res.json(partners);
 });
 
-// ── Message history ───────────────────────────────────────
+// ── Message history (with reactions) ──────────────────────
 app.get('/api/messages/:channelId', authMiddleware, (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-  const msgs = db.prepare('SELECT * FROM messages WHERE channel_id = ? ORDER BY ts DESC LIMIT ?').all(req.params.channelId, limit);
-  res.json(msgs.reverse());
+  const msgs = db.prepare('SELECT * FROM messages WHERE channel_id = ? ORDER BY ts DESC LIMIT ?').all(req.params.channelId, limit).reverse();
+  // attach reactions
+  const reactStmt = db.prepare('SELECT emoji, username FROM reactions WHERE message_id = ?');
+  msgs.forEach(m => {
+    const rows = reactStmt.all(m.id);
+    const grouped = {};
+    rows.forEach(r => { (grouped[r.emoji] = grouped[r.emoji] || []).push(r.username); });
+    m.reactions = grouped;
+  });
+  res.json(msgs);
 });
 
 app.get('/api/dms/:partner', authMiddleware, (req, res) => {
@@ -247,13 +269,71 @@ app.post('/api/admin/role', authMiddleware, writeLimiter, (req, res) => {
   const allowed = ['superadmin','admin','moderator','vip','member','banned'];
   if (!validUsername(username) || !allowed.includes(role)) return res.status(400).json({ error: 'Bad input' });
   if (req.user.role !== 'superadmin' && role === 'superadmin') return res.status(403).json({ error: 'Only superadmin can grant superadmin' });
+  // Admins cannot modify a superadmin
+  const target = db.prepare('SELECT role FROM users WHERE username = ?').get(username);
+  if (target && target.role === 'superadmin' && req.user.role !== 'superadmin') return res.status(403).json({ error: 'Cannot modify a superadmin' });
   db.prepare('UPDATE users SET role = ? WHERE username = ?').run(role, username);
   io.emit('user:role-changed', { username, role });
   res.json({ ok: true });
 });
 
+// ── Admin: mute a user (temporary) ────────────────────────
+app.post('/api/admin/mute', authMiddleware, writeLimiter, (req, res) => {
+  const r = req.user.role;
+  const canMute = (r === 'superadmin' || r === 'admin' || r === 'moderator');
+  if (!canMute) return res.status(403).json({ error: 'Moderator+ only' });
+  const { username, minutes, reason } = req.body || {};
+  if (!validUsername(username)) return res.status(400).json({ error: 'Invalid username' });
+  const target = db.prepare('SELECT role FROM users WHERE username = ?').get(username);
+  if (target && (target.role === 'superadmin' || target.role === 'admin') && r !== 'superadmin') {
+    return res.status(403).json({ error: 'Cannot mute an admin' });
+  }
+  const mins = Math.min(Math.max(parseInt(minutes) || 5, 1), 10080); // 1 min – 7 days
+  const until = Date.now() + mins * 60000;
+  db.prepare('INSERT OR REPLACE INTO mutes (username, until, by, reason) VALUES (?, ?, ?, ?)')
+    .run(username, until, req.user.username, sanitize(reason, 200) || '');
+  io.emit('user:muted', { username, until, by: req.user.username });
+  res.json({ ok: true, until });
+});
+
+// ── Admin: unmute ─────────────────────────────────────────
+app.post('/api/admin/unmute', authMiddleware, writeLimiter, (req, res) => {
+  const r = req.user.role;
+  if (r !== 'superadmin' && r !== 'admin' && r !== 'moderator') return res.status(403).json({ error: 'Moderator+ only' });
+  const { username } = req.body || {};
+  if (!validUsername(username)) return res.status(400).json({ error: 'Invalid username' });
+  db.prepare('DELETE FROM mutes WHERE username = ?').run(username);
+  io.emit('user:unmuted', { username });
+  res.json({ ok: true });
+});
+
+// ── Mute status list ──────────────────────────────────────
+app.get('/api/mutes', authMiddleware, (req, res) => {
+  const now = Date.now();
+  db.prepare('DELETE FROM mutes WHERE until < ?').run(now); // clean expired
+  res.json(db.prepare('SELECT * FROM mutes').all());
+});
+
+// ── Superadmin: login as another user (impersonate) ──────
+app.post('/api/admin/login-as', authMiddleware, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Superadmin only' });
+  const { username } = req.body || {};
+  const target = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  const tokenForTarget = signToken({ id: target.id, username: target.username, role: target.role });
+  res.json({ token: tokenForTarget, user: { id: target.id, username: target.username, email: target.email, role: target.role } });
+});
+
+function isMuted(username) {
+  const m = db.prepare('SELECT until FROM mutes WHERE username = ?').get(username);
+  if (!m) return false;
+  if (m.until < Date.now()) { db.prepare('DELETE FROM mutes WHERE username = ?').run(username); return false; }
+  return true;
+}
+
 // ── Health ────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ ok: true, time: Date.now() }));
+
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║  Socket.io — real-time                                    ║
@@ -311,6 +391,7 @@ io.on('connection', (socket) => {
   socket.on('message:send', (payload, ack) => {
     try {
       const { channelId, text, action } = payload || {};
+      if (isMuted(username)) return ack && ack({ error: 'You are muted' });
       if (!checkRate(username)) return ack && ack({ error: 'Rate limit' });
       const clean = sanitize(text, 2000);
       if (!clean) return ack && ack({ error: 'Invalid message' });
@@ -321,9 +402,31 @@ io.on('connection', (socket) => {
       const ts = Date.now();
       const info = db.prepare('INSERT INTO messages (channel_id, author, text, action, ts) VALUES (?, ?, ?, ?, ?)')
         .run(channelId, username, clean, action ? 1 : 0, ts);
-      const msg = { id: info.lastInsertRowid, channel_id: channelId, author: username, text: clean, action: action ? 1 : 0, ts };
+      const msg = { id: info.lastInsertRowid, channel_id: channelId, author: username, text: clean, action: action ? 1 : 0, ts, reactions: {} };
       io.to('ch:' + channelId).emit('message:new', msg);
       ack && ack({ ok: true, msg });
+    } catch (e) {
+      ack && ack({ error: e.message });
+    }
+  });
+
+  // ── Toggle reaction on a message ────────────────────────
+  socket.on('reaction:toggle', (payload, ack) => {
+    try {
+      const { messageId, emoji, channelId } = payload || {};
+      if (!messageId || typeof emoji !== 'string' || emoji.length > 8) return ack && ack({ error: 'Bad input' });
+      const exists = db.prepare('SELECT 1 FROM reactions WHERE message_id = ? AND emoji = ? AND username = ?').get(messageId, emoji, username);
+      if (exists) {
+        db.prepare('DELETE FROM reactions WHERE message_id = ? AND emoji = ? AND username = ?').run(messageId, emoji, username);
+      } else {
+        db.prepare('INSERT OR IGNORE INTO reactions (message_id, emoji, username) VALUES (?, ?, ?)').run(messageId, emoji, username);
+      }
+      // build updated reaction map for this message
+      const rows = db.prepare('SELECT emoji, username FROM reactions WHERE message_id = ?').all(messageId);
+      const grouped = {};
+      rows.forEach(r => { (grouped[r.emoji] = grouped[r.emoji] || []).push(r.username); });
+      io.to('ch:' + channelId).emit('reaction:update', { messageId, reactions: grouped });
+      ack && ack({ ok: true, reactions: grouped });
     } catch (e) {
       ack && ack({ error: e.message });
     }
