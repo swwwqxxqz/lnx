@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#000;color-scheme:dark;">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lunex · Dashboard</title>
+  <script src="security.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;cursor:none!important;}
+    html,body{background:#000 !important;}
+    html{overflow-x:hidden;}
+    body{font-family:'Segoe UI',sans-serif;background:#000 !important;color:#fff;min-height:100vh;cursor:none;}
+    canvas{position:fixed;inset:0;z-index:0;background:#000 !important;}
+    body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);pointer-events:none;z-index:1;}
+    #cursor{width:20px;height:20px;border:2px solid #fff;border-radius:50%;position:fixed;pointer-events:none;transform:translate(-50%,-50%);transition:transform .12s,background .2s;z-index:9999;box-shadow:0 0 10px #fff,0 0 20px #fff;}
+    #cursor-dot{width:5px;height:5px;background:#fff;border-radius:50%;position:fixed;pointer-events:none;transform:translate(-50%,-50%);z-index:9999;box-shadow:0 0 8px #fff;}
+
+    /* ── NAV ── */
+    nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:18px 48px;background:rgba(0,0,0,.8);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.07);}
+    .nav-logo{font-size:1.4rem;font-weight:900;letter-spacing:8px;text-transform:uppercase;color:#fff;text-shadow:0 0 10px #fff,0 0 30px rgba(255,255,255,.4);animation:flicker 6s 2s infinite;}
+    @keyframes flicker{0%,19%,21%,23%,25%,54%,56%,100%{text-shadow:0 0 10px #fff,0 0 30px rgba(255,255,255,.4);}20%,24%,55%{text-shadow:none;color:rgba(255,255,255,.7);}}
+    .nav-right{display:flex;align-items:center;gap:24px;}
+    .nav-user{font-size:.8rem;letter-spacing:3px;color:rgba(255,255,255,.4);text-transform:uppercase;}
+    .nav-user span{color:#fff;text-shadow:0 0 8px #fff;}
+    .btn-logout{padding:8px 22px;font-size:.72rem;letter-spacing:3px;text-transform:uppercase;border:1px solid rgba(255,255,255,.3);background:transparent;color:rgba(255,255,255,.5);cursor:none;transition:all .2s;font-family:inherit;}
+    .btn-logout:hover{border-color:#fff;color:#fff;box-shadow:0 0 15px rgba(255,255,255,.2);}
+
+    /* ── PROGRESS BAR ── */
+    #progress-bar{position:fixed;top:0;left:0;height:2px;background:#fff;box-shadow:0 0 8px #fff;z-index:200;transition:width .1s;}
+
+    /* ── MAIN ── */
+    main{position:relative;z-index:2;padding:120px 48px 60px;}
+
+    /* ── WELCOME ── */
+    .welcome{margin-bottom:60px;}
+    .welcome-greeting{font-size:.8rem;letter-spacing:6px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:12px;}
+    .welcome-name{font-size:clamp(2rem,5vw,4rem);font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#fff;text-shadow:0 0 10px #fff,0 0 40px rgba(255,255,255,.3);}
+    .welcome-sub{margin-top:10px;font-size:.85rem;letter-spacing:3px;color:rgba(255,255,255,.3);text-transform:uppercase;}
+
+    /* ── STATS ── */
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;margin-bottom:50px;}
+    .stat-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);padding:30px 24px;transition:border-color .3s,box-shadow .3s;}
+    .stat-card:hover{border-color:rgba(255,255,255,.5);box-shadow:0 0 20px rgba(255,255,255,.08);}
+    .stat-label{font-size:.7rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:12px;}
+    .stat-value{font-size:2.2rem;font-weight:900;color:#fff;text-shadow:0 0 10px #fff,0 0 30px rgba(255,255,255,.3);}
+    .stat-sub{font-size:.72rem;letter-spacing:2px;color:rgba(255,255,255,.2);margin-top:6px;text-transform:uppercase;}
+
+    /* ── SECTION TITLE ── */
+    .sec-title{font-size:.8rem;letter-spacing:6px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:20px;display:flex;align-items:center;gap:16px;}
+    .sec-title::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.08);}
+
+    /* ── ACTIVITY ── */
+    .activity-list{display:flex;flex-direction:column;gap:12px;margin-bottom:50px;}
+    .activity-item{display:flex;align-items:center;gap:16px;padding:16px 20px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);transition:border-color .2s;}
+    .activity-item:hover{border-color:rgba(255,255,255,.2);}
+    .activity-dot{width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 8px #fff;flex-shrink:0;}
+    .activity-text{flex:1;font-size:.88rem;color:rgba(255,255,255,.6);}
+    .activity-text strong{color:#fff;}
+    .activity-time{font-size:.72rem;letter-spacing:2px;color:rgba(255,255,255,.2);text-transform:uppercase;}
+
+    /* ── PROFILE CARD ── */
+    .profile-section{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:50px;}
+    @media(max-width:700px){.profile-section{grid-template-columns:1fr;}}
+
+    .profile-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);padding:32px;}
+    .profile-card h3{font-size:.75rem;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:24px;}
+    .profile-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+    .profile-row:last-child{border-bottom:none;}
+    .profile-key{font-size:.75rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.3);}
+    .profile-val{font-size:.9rem;color:#fff;font-weight:600;}
+
+    /* ── CHANGE PASSWORD ── */
+    .form-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);padding:32px;}
+    .form-card h3{font-size:.75rem;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:24px;}
+    .field{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+    .field label{font-size:.7rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.3);}
+    .field input{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#fff;padding:12px 14px;font-size:.9rem;outline:none;transition:border-color .2s,box-shadow .2s;cursor:none;font-family:inherit;}
+    .field input:focus{border-color:rgba(255,255,255,.5);box-shadow:0 0 12px rgba(255,255,255,.08);}
+    .field input::placeholder{color:rgba(255,255,255,.2);}
+    .btn-sm{padding:12px 28px;font-size:.75rem;font-weight:700;letter-spacing:4px;text-transform:uppercase;border:1px solid rgba(255,255,255,.4);background:transparent;color:rgba(255,255,255,.7);cursor:none;transition:all .2s;font-family:inherit;}
+    .btn-sm:hover{border-color:#fff;color:#fff;background:rgba(255,255,255,.05);box-shadow:0 0 20px rgba(255,255,255,.1);}
+    .msg{font-size:.75rem;letter-spacing:2px;padding:10px 14px;margin-top:12px;display:none;}
+    .msg.error{border:1px solid rgba(255,80,80,.3);background:rgba(255,80,80,.05);color:rgba(255,120,120,.9);}
+    .msg.success{border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.03);color:#fff;text-shadow:0 0 8px #fff;}
+    .msg.show{display:block;}
+    @keyframes slideIn{from{opacity:0;}to{opacity:1;}}
+    body.page-enter{animation:slideIn .35s ease both;}
+
+    /* ── FOOTER ── */
+    footer{position:relative;z-index:2;text-align:center;padding:30px;border-top:1px solid rgba(255,255,255,.05);font-size:.7rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.15);}
+    footer span{color:rgba(255,255,255,.4);text-shadow:0 0 6px #fff;}
+
+    /* ── Particles ── */
+    .particle{position:fixed;pointer-events:none;border-radius:50%;z-index:9998;animation:pFly .8s ease-out forwards;}
+    @keyframes pFly{0%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0;}}
+    .ripple{position:fixed;border-radius:50%;pointer-events:none;z-index:9997;border:1px solid rgba(255,255,255,.5);animation:rOut .6s ease-out forwards;}
+    @keyframes rOut{0%{width:0;height:0;opacity:.8;transform:translate(-50%,-50%);}100%{width:120px;height:120px;opacity:0;transform:translate(-50%,-50%);}}
+  </style>
+</head>
+<body style="background:#000;" class="page-enter">
+<div id="page-transition" style="position:fixed;inset:0;background:#000;z-index:99999;pointer-events:none;opacity:0;transition:opacity .35s cubic-bezier(.4,0,.2,1);"></div>
+<canvas id="starfield"></canvas>
+<div id="cursor"></div>
+<div id="cursor-dot"></div>
+<div id="progress-bar"></div>
+
+<nav>
+  <div class="nav-logo">Lunex</div>
+  <div class="nav-right">
+    <a href="chat.html" style="color:rgba(255,255,255,.4);text-decoration:none;font-size:.75rem;letter-spacing:3px;text-transform:uppercase;transition:color .2s;cursor:none;margin-right:8px;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.4)'">Chat</a>
+    <a href="dm.html" style="color:rgba(255,255,255,.4);text-decoration:none;font-size:.75rem;letter-spacing:3px;text-transform:uppercase;transition:color .2s;cursor:none;margin-right:8px;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.4)'">💬 DMs</a>
+    <a href="admin.html" id="adminNavLink" style="display:none;color:rgba(255,255,255,.4);text-decoration:none;font-size:.75rem;letter-spacing:3px;text-transform:uppercase;transition:color .2s,text-shadow .2s;cursor:none;margin-right:8px;" onmouseover="this.style.color='#fff';this.style.textShadow='0 0 8px #fff'" onmouseout="this.style.color='rgba(255,255,255,.4)';this.style.textShadow='none'">⚡ Admin</a>
+    <div class="nav-user">Logged in as <span id="navUsername">—</span> <span id="navRoleBadge" style="font-size:.6rem;letter-spacing:2px;padding:2px 8px;border:1px solid rgba(255,255,255,.2);margin-left:6px;vertical-align:middle;"></span></div>
+    <button class="btn-logout" onclick="logout()">Log Out</button>
+  </div>
+</nav>
+
+<main>
+  <!-- WELCOME -->
+  <div class="welcome">
+    <div class="welcome-greeting">Welcome back</div>
+    <div class="welcome-name" id="welcomeName">—</div>
+    <div class="welcome-sub">You are now inside the Lunex universe</div>
+  </div>
+
+  <!-- STATS -->
+  <div class="sec-title">Overview</div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Account Status</div>
+      <div class="stat-value">Active</div>
+      <div class="stat-sub">All systems go</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Member Since</div>
+      <div class="stat-value" id="statJoined">—</div>
+      <div class="stat-sub">Registration date</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Users</div>
+      <div class="stat-value" id="statUsers">0</div>
+      <div class="stat-sub">On this device</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Sessions</div>
+      <div class="stat-value" id="statSessions">1</div>
+      <div class="stat-sub">Current session</div>
+    </div>
+  </div>
+
+  <!-- ACTIVITY -->
+  <div class="sec-title">Recent Activity</div>
+  <div class="activity-list" id="activityList"></div>
+
+  <!-- PROFILE + CHANGE PASSWORD -->
+  <div class="sec-title">Account</div>
+  <div class="profile-section">
+    <div class="profile-card">
+      <h3>Profile Info</h3>
+      <div class="profile-row"><span class="profile-key">Username</span><span class="profile-val" id="profUser">—</span></div>
+      <div class="profile-row"><span class="profile-key">Email</span><span class="profile-val" id="profEmail">—</span></div>
+      <div class="profile-row"><span class="profile-key">Joined</span><span class="profile-val" id="profJoined">—</span></div>
+      <div class="profile-row"><span class="profile-key">Role</span><span class="profile-val">Member</span></div>
+    </div>
+
+    <div class="form-card">
+      <h3>Change Password</h3>
+      <form onsubmit="changePassword(event)">
+        <div class="field">
+          <label>Current Password</label>
+          <input type="password" id="cpCurrent" placeholder="Current password"/>
+        </div>
+        <div class="field">
+          <label>New Password</label>
+          <input type="password" id="cpNew" placeholder="New password (min 6 chars)"/>
+        </div>
+        <div class="field">
+          <label>Confirm New</label>
+          <input type="password" id="cpConfirm" placeholder="Repeat new password"/>
+        </div>
+        <div class="msg" id="cpMsg"></div>
+        <button class="btn-sm" type="submit">Update Password</button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<footer>Created by <span>Lunex</span> · 2026</footer>
+
+<script>
+// ── Auth guard ───────────────────────────────────────────
+const session=JSON.parse(localStorage.getItem('lunex_session')||'null');
+if(!session) window.location.href='login.html';
+
+// ── ROLES SYSTEM ─────────────────────────────────────────
+const SUPERADMIN='qqq';
+function getRoles(){ return JSON.parse(localStorage.getItem('lunex_roles')||'{}'); }
+function getUserRole(username){
+  if(username===SUPERADMIN) return 'superadmin';
+  const roles=getRoles();
+  return roles[username]||'member';
+}
+function isAdmin(username){ const r=getUserRole(username); return r==='superadmin'||r==='admin'||r==='moderator'; }
+
+// Bootstrap superadmin
+(function(){
+  const roles=getRoles();
+  roles['qqq']='superadmin';
+  localStorage.setItem('lunex_roles',JSON.stringify(roles));
+})();
+
+// ── Populate UI ──────────────────────────────────────────
+document.getElementById('navUsername').textContent=session.username;
+document.getElementById('welcomeName').textContent=session.username;
+document.getElementById('statJoined').textContent=session.joined||'—';
+document.getElementById('profUser').textContent=session.username;
+document.getElementById('profEmail').textContent=session.email;
+document.getElementById('profJoined').textContent=session.joined||'—';
+
+// Role badge
+const myRole=getUserRole(session.username);
+const roleColors={'superadmin':'#fff','admin':'rgba(255,255,255,.8)','moderator':'rgba(255,255,255,.6)','vip':'rgba(255,255,255,.5)','member':'rgba(255,255,255,.25)'};
+const badge=document.getElementById('navRoleBadge');
+badge.textContent=myRole.toUpperCase();
+badge.style.color=roleColors[myRole]||'rgba(255,255,255,.3)';
+badge.style.borderColor=roleColors[myRole]||'rgba(255,255,255,.2)';
+if(myRole==='superadmin'||myRole==='admin') badge.style.textShadow='0 0 8px #fff';
+// Show admin link if has access
+if(isAdmin(session.username)) document.getElementById('adminNavLink').style.display='inline';
+
+const users=JSON.parse(localStorage.getItem('lunex_users')||'[]');
+document.getElementById('statUsers').textContent=users.length;
+
+// ── Sessions counter ─────────────────────────────────────
+const sessCount=(+localStorage.getItem('lunex_sess_count')||0)+1;
+localStorage.setItem('lunex_sess_count',sessCount);
+document.getElementById('statSessions').textContent=sessCount;
+
+// ── Activity feed ────────────────────────────────────────
+const activities=[
+  {text:`<strong>${session.username}</strong> logged in successfully`,time:'Just now'},
+  {text:`Account created on <strong>${session.joined}</strong>`,time:session.joined},
+  {text:`<strong>${users.length}</strong> total account(s) registered on this device`,time:'System'},
+  {text:`Welcome to <strong>Lunex</strong> — the interactive universe`,time:'Always'},
+];
+const list=document.getElementById('activityList');
+activities.forEach(a=>{
+  list.innerHTML+=`<div class="activity-item"><div class="activity-dot"></div><div class="activity-text">${a.text}</div><div class="activity-time">${a.time}</div></div>`;
+});
+
+// ── Change Password ──────────────────────────────────────
+function showMsg(id,text,type){const el=document.getElementById(id);el.textContent=text;el.className='msg '+type+' show';}
+function changePassword(e){
+  e.preventDefault();
+  const cur=document.getElementById('cpCurrent').value;
+  const nw=document.getElementById('cpNew').value;
+  const cf=document.getElementById('cpConfirm').value;
+  if(!cur||!nw||!cf){showMsg('cpMsg','Fill in all fields.','error');return;}
+  if(nw.length<6){showMsg('cpMsg','New password must be at least 6 characters.','error');return;}
+  if(nw!==cf){showMsg('cpMsg','New passwords do not match.','error');return;}
+  const allUsers=JSON.parse(localStorage.getItem('lunex_users')||'[]');
+  const idx=allUsers.findIndex(u=>u.username===session.username);
+  if(idx===-1){showMsg('cpMsg','User not found.','error');return;}
+  if(allUsers[idx].password!==btoa(cur)){showMsg('cpMsg','Current password is incorrect.','error');return;}
+  allUsers[idx].password=btoa(nw);
+  localStorage.setItem('lunex_users',JSON.stringify(allUsers));
+  showMsg('cpMsg','Password updated successfully.','success');
+  e.target.reset();
+}
+
+// ── Logout ───────────────────────────────────────────────
+function logout(){
+  localStorage.removeItem('lunex_session');
+  window.location.href='login.html';
+}
+
+// ── Cursor ───────────────────────────────────────────────
+const cursor=document.getElementById('cursor'),cursorDot=document.getElementById('cursor-dot');
+let mx=0,my=0,cx=0,cy=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cursorDot.style.left=mx+'px';cursorDot.style.top=my+'px';});
+(function ac(){cx+=(mx-cx)*.15;cy+=(my-cy)*.15;cursor.style.left=cx+'px';cursor.style.top=cy+'px';requestAnimationFrame(ac);})();
+document.querySelectorAll('button,input,.stat-card,.activity-item').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{cursor.style.transform='translate(-50%,-50%) scale(2)';cursor.style.background='rgba(255,255,255,.15)';});
+  el.addEventListener('mouseleave',()=>{cursor.style.transform='translate(-50%,-50%) scale(1)';cursor.style.background='transparent';});
+});
+
+// ── Particles ────────────────────────────────────────────
+document.addEventListener('click',e=>{spawnRipple(e.clientX,e.clientY);for(let i=0;i<8;i++)spawnParticle(e.clientX,e.clientY);});
+function spawnParticle(x,y){const p=document.createElement('div');p.className='particle';const s=Math.random()*7+3,a=Math.random()*Math.PI*2,d=Math.random()*100+30;p.style.cssText=`left:${x}px;top:${y}px;width:${s}px;height:${s}px;background:rgba(255,255,255,${Math.random()*.7+.3});box-shadow:0 0 6px #fff;--tx:${Math.cos(a)*d}px;--ty:${Math.sin(a)*d}px;`;document.body.appendChild(p);setTimeout(()=>p.remove(),800);}
+function spawnRipple(x,y){const r=document.createElement('div');r.className='ripple';r.style.left=x+'px';r.style.top=y+'px';document.body.appendChild(r);setTimeout(()=>r.remove(),600);}
+
+// ── Starfield ────────────────────────────────────────────
+const canvas=document.getElementById('starfield'),ctx=canvas.getContext('2d');
+let stars=[],W,H,mX=0,mY=0;
+function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+}
+resize();window.addEventListener('resize',resize);
+for(let i=0;i<180;i++)stars.push({x:Math.random()*2000-1000,y:Math.random()*2000-1000,z:Math.random()*1000});
+document.addEventListener('mousemove',e=>{mX=(e.clientX/W-.5)*2;mY=(e.clientY/H-.5)*2;});
+(function ds(){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);stars.forEach(s=>{s.z-=2+Math.abs(mX);if(s.z<=0){s.z=1000;s.x=Math.random()*2000-1000;s.y=Math.random()*2000-1000;}const sx=(s.x/s.z)*W+W/2+mX*20,sy=(s.y/s.z)*H+H/2+mY*20,r=Math.max(.1,(1-s.z/1000)*2.5),a=1-s.z/1000;ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${a})`;ctx.shadowBlur=r>1.5?5:0;ctx.shadowColor='#fff';ctx.fill();});requestAnimationFrame(ds);})();
+
+// ── Scroll progress ──────────────────────────────────────
+const bar=document.getElementById('progress-bar');
+window.addEventListener('scroll',()=>{const p=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;bar.style.width=p+'%';});
+
+</script>
+<script src="transition.js"></script>
+</body>
+</html>

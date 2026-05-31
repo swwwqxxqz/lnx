@@ -1,0 +1,712 @@
+﻿
+<!DOCTYPE html>
+<html lang="en" style="background:#000;color-scheme:dark;">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Lunex · DMs</title>
+<script src="security.js"></script>
+<style>
+html,body{background:#000!important;margin:0;padding:0;}
+*{box-sizing:border-box;cursor:none!important;}
+body{font-family:'Segoe UI',sans-serif;background:#000!important;color:#fff;height:100vh;display:flex;flex-direction:column;overflow:hidden;cursor:none;}
+canvas{position:fixed;inset:0;z-index:0;background:#000!important;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 4px);pointer-events:none;z-index:1;}
+#cursor{width:20px;height:20px;border:2px solid #fff;border-radius:50%;position:fixed;pointer-events:none;transform:translate(-50%,-50%);transition:transform .12s,background .2s;z-index:9999;box-shadow:0 0 10px #fff,0 0 20px #fff;}
+#cursor-dot{width:5px;height:5px;background:#fff;border-radius:50%;position:fixed;pointer-events:none;transform:translate(-50%,-50%);z-index:9999;box-shadow:0 0 8px #fff;}
+
+/* NAV */
+nav{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:rgba(0,0,0,.95);border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;}
+.nav-logo{font-size:1.2rem;font-weight:900;letter-spacing:8px;text-transform:uppercase;color:#fff;text-shadow:0 0 10px #fff,0 0 30px rgba(255,255,255,.3);}
+.nav-links{display:flex;gap:20px;}
+.nav-links a{color:rgba(255,255,255,.35);text-decoration:none;font-size:.72rem;letter-spacing:3px;text-transform:uppercase;transition:color .2s;cursor:none;}
+.nav-links a:hover,.nav-links a.active{color:#fff;text-shadow:0 0 8px #fff;}
+.nav-right{display:flex;align-items:center;gap:12px;}
+.nav-user{font-size:.72rem;letter-spacing:3px;color:rgba(255,255,255,.3);text-transform:uppercase;}
+.nav-user span{color:#fff;}
+.nav-badge{font-size:.55rem;letter-spacing:2px;padding:2px 8px;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.5);text-transform:uppercase;margin-left:6px;vertical-align:middle;}
+
+/* LAYOUT */
+.dm-layout{display:flex;flex:1;overflow:hidden;position:relative;z-index:2;}
+
+/* DM SIDEBAR */
+.dm-sidebar{width:260px;background:rgba(0,0,0,.85);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;flex-shrink:0;}
+.dm-sidebar-header{padding:16px 16px 12px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;}
+.dm-sidebar-title{font-size:.65rem;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:10px;}
+.dm-search{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#fff;padding:8px 12px;font-size:.8rem;outline:none;font-family:inherit;transition:border-color .2s;cursor:none;}
+.dm-search:focus{border-color:rgba(255,255,255,.35);}
+.dm-search::placeholder{color:rgba(255,255,255,.2);}
+.dm-list{flex:1;overflow-y:auto;padding:8px 0;}
+.dm-list::-webkit-scrollbar{width:3px;}
+.dm-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);}
+
+/* DM item */
+.dm-item{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:none;transition:background .15s;position:relative;}
+.dm-item:hover{background:rgba(255,255,255,.05);}
+.dm-item.active{background:rgba(255,255,255,.08);}
+.dm-avatar{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;flex-shrink:0;text-transform:uppercase;}
+.dm-info{flex:1;min-width:0;}
+.dm-name{font-size:.82rem;font-weight:700;color:rgba(255,255,255,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dm-item.active .dm-name{color:#fff;text-shadow:0 0 6px rgba(255,255,255,.4);}
+.dm-preview{font-size:.7rem;color:rgba(255,255,255,.3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+.dm-preview.encrypted{font-style:italic;color:rgba(255,255,255,.2);}
+.dm-meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;}
+.dm-time{font-size:.6rem;color:rgba(255,255,255,.2);letter-spacing:.5px;}
+.dm-unread{width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 0 6px #fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#000;}
+.dm-lock{font-size:.65rem;color:rgba(255,255,255,.25);}
+
+/* MAIN */
+.dm-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+
+/* Header */
+.dm-header{padding:12px 20px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:12px;flex-shrink:0;background:rgba(0,0,0,.5);}
+.dm-header-avatar{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;text-transform:uppercase;}
+.dm-header-name{font-size:.9rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#fff;text-shadow:0 0 8px #fff;}
+.dm-header-status{font-size:.65rem;letter-spacing:2px;color:rgba(255,255,255,.3);text-transform:uppercase;margin-left:4px;}
+.dm-header-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+.enc-badge{font-size:.6rem;letter-spacing:3px;text-transform:uppercase;padding:3px 10px;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.4);display:flex;align-items:center;gap:5px;}
+.enc-badge.active{border-color:rgba(255,255,255,.5);color:#fff;text-shadow:0 0 6px #fff;box-shadow:0 0 10px rgba(255,255,255,.1);}
+.enc-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.3);}
+.enc-badge.active .enc-dot{background:#fff;box-shadow:0 0 5px #fff;}
+
+/* Messages */
+.dm-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:2px;}
+.dm-messages::-webkit-scrollbar{width:4px;}
+.dm-messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);}
+
+.msg-row{display:flex;gap:10px;padding:3px 0;margin-bottom:6px;}
+.msg-row.me{flex-direction:row-reverse;}
+.msg-row-avatar{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0;margin-top:2px;text-transform:uppercase;}
+.msg-row-body{max-width:65%;display:flex;flex-direction:column;}
+.msg-row.me .msg-row-body{align-items:flex-end;}
+.msg-bubble-dm{padding:10px 14px;font-size:.85rem;line-height:1.6;word-break:break-word;position:relative;}
+.msg-row:not(.me) .msg-bubble-dm{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:0 10px 10px 10px;color:rgba(255,255,255,.8);}
+.msg-row.me .msg-bubble-dm{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:10px 0 10px 10px;color:#fff;}
+.msg-bubble-dm.action{background:transparent!important;border-color:transparent!important;color:rgba(255,255,255,.4);font-style:italic;}
+.msg-meta-dm{display:flex;align-items:center;gap:6px;margin-top:3px;padding:0 2px;}
+.msg-time-dm{font-size:.6rem;color:rgba(255,255,255,.2);}
+.msg-enc-icon{font-size:.6rem;color:rgba(255,255,255,.25);}
+.msg-enc-icon.on{color:rgba(255,255,255,.5);}
+.system-dm{text-align:center;font-size:.62rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.18);padding:10px 0;margin:6px 0;display:flex;align-items:center;gap:12px;}
+.system-dm::before,.system-dm::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.06);}
+
+/* Typing */
+.dm-typing{padding:3px 20px;font-size:.62rem;letter-spacing:2px;color:rgba(255,255,255,.25);text-transform:uppercase;height:22px;flex-shrink:0;}
+.tdots span{animation:td 1s infinite;display:inline-block;}
+.tdots span:nth-child(2){animation-delay:.15s;}
+.tdots span:nth-child(3){animation-delay:.3s;}
+@keyframes td{0%,80%,100%{opacity:.2;transform:scale(.8);}40%{opacity:1;transform:scale(1.2);}}
+
+/* Input */
+.dm-input-area{padding:0 20px 14px;display:flex;gap:10px;align-items:flex-end;flex-shrink:0;}
+.dm-input-wrap{flex:1;position:relative;}
+#dmInput{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#fff;padding:11px 14px;font-size:.88rem;outline:none;resize:none;font-family:inherit;line-height:1.5;max-height:120px;overflow-y:auto;transition:border-color .2s,box-shadow .2s;cursor:none;}
+#dmInput:focus{border-color:rgba(255,255,255,.35);box-shadow:0 0 10px rgba(255,255,255,.05);}
+#dmInput::placeholder{color:rgba(255,255,255,.18);}
+#dmInput:disabled{opacity:.3;}
+.dm-send-btn{padding:11px 22px;background:transparent;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.6);font-size:.72rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;cursor:none;transition:all .2s;font-family:inherit;flex-shrink:0;height:44px;}
+.dm-send-btn:hover{border-color:#fff;color:#fff;box-shadow:0 0 16px rgba(255,255,255,.12);}
+.dm-send-btn:disabled{opacity:.3;pointer-events:none;}
+
+/* Empty state */
+.dm-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:rgba(255,255,255,.15);}
+.dm-empty-icon{font-size:3rem;opacity:.3;}
+.dm-empty-text{font-size:.75rem;letter-spacing:4px;text-transform:uppercase;}
+
+/* Key setup modal */
+.key-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:600;display:none;align-items:center;justify-content:center;}
+.key-modal.show{display:flex;}
+.key-box{background:#0a0a0a;border:1px solid rgba(255,255,255,.15);padding:36px;max-width:460px;width:100%;position:relative;}
+.key-box h2{font-size:.85rem;font-weight:900;letter-spacing:5px;text-transform:uppercase;color:#fff;text-shadow:0 0 8px #fff;margin-bottom:8px;}
+.key-box p{font-size:.75rem;color:rgba(255,255,255,.4);letter-spacing:1px;line-height:1.7;margin-bottom:24px;}
+.key-display{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);padding:12px 14px;font-size:.72rem;letter-spacing:2px;color:rgba(255,255,255,.6);word-break:break-all;margin-bottom:16px;font-family:monospace;}
+.key-input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:#fff;padding:10px 13px;font-size:.8rem;outline:none;font-family:monospace;margin-bottom:16px;transition:border-color .2s;}
+.key-input:focus{border-color:rgba(255,255,255,.4);}
+.key-input::placeholder{color:rgba(255,255,255,.2);}
+.key-btn-row{display:flex;gap:10px;}
+.key-btn{padding:10px 22px;font-size:.72rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;border:1px solid rgba(255,255,255,.25);background:transparent;color:rgba(255,255,255,.5);cursor:none;transition:all .2s;font-family:inherit;flex:1;}
+.key-btn:hover{border-color:#fff;color:#fff;box-shadow:0 0 12px rgba(255,255,255,.1);}
+.key-btn.primary{border-color:rgba(255,255,255,.5);color:#fff;}
+.key-btn.primary:hover{box-shadow:0 0 20px rgba(255,255,255,.15);}
+.key-error{font-size:.72rem;color:rgba(255,80,80,.8);letter-spacing:2px;margin-bottom:12px;display:none;}
+.key-error.show{display:block;}
+
+/* Particles */
+.particle{position:fixed;pointer-events:none;border-radius:50%;z-index:9998;animation:pFly .8s ease-out forwards;}
+@keyframes pFly{0%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0;}}
+.ripple{position:fixed;border-radius:50%;pointer-events:none;z-index:9997;border:1px solid rgba(255,255,255,.4);animation:rOut .6s ease-out forwards;}
+@keyframes rOut{0%{width:0;height:0;opacity:.8;transform:translate(-50%,-50%);}100%{width:100px;height:100px;opacity:0;transform:translate(-50%,-50%);}}
+@keyframes neonPulse{0%{box-shadow:0 0 5px #fff,0 0 20px #fff,0 0 50px #fff;}100%{box-shadow:none;}}
+.pulse{animation:neonPulse .6s ease-out;}
+/* PAGE TRANSITION */
+#page-transition{position:fixed;inset:0;background:#000;z-index:99999;pointer-events:none;opacity:0;transition:opacity .35s cubic-bezier(.4,0,.2,1);}
+#page-transition.out{opacity:1;}
+@keyframes slideIn{from{opacity:0;}to{opacity:1;}}
+body.page-enter{animation:slideIn .35s ease both;}
+</style>
+</head>
+<body style="background:#000;" class="page-enter">
+<div id="page-transition"></div>
+<canvas id="starfield"></canvas>
+<div id="cursor"></div>
+<div id="cursor-dot"></div>
+
+<!-- KEY SETUP MODAL -->
+<div class="key-modal" id="keyModal">
+  <div class="key-box">
+    <h2>🔐 Encryption Key</h2>
+    <p id="keyModalDesc">To send encrypted messages, you and the recipient must share the same secret key. Generate one and share it securely, or enter a key you received.</p>
+    <div class="key-display" id="keyDisplay" style="display:none;"></div>
+    <div class="key-error" id="keyError"></div>
+    <input class="key-input" id="keyInput" type="password" placeholder="Paste shared key here..."/>
+    <div class="key-btn-row">
+      <button class="key-btn" onclick="generateKey()">Generate New Key</button>
+      <button class="key-btn primary" onclick="applyKey()">Use This Key</button>
+    </div>
+    <div style="margin-top:14px;font-size:.65rem;letter-spacing:2px;color:rgba(255,255,255,.2);line-height:1.6;">
+      AES-256-GCM · Web Crypto API · Keys never leave your browser
+    </div>
+  </div>
+</div>
+
+<nav>
+  <div class="nav-logo">Lunex</div>
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="chat.html">Chat</a>
+    <a href="dm.html" class="active">DMs</a>
+    <a href="admin.html" id="adminLink" style="display:none;">⚡ Admin</a>
+  </div>
+  <div class="nav-right">
+    <div class="nav-user"><span id="navUser">—</span><span class="nav-badge" id="navBadge"></span></div>
+  </div>
+</nav>
+
+<div class="dm-layout">
+  <!-- SIDEBAR -->
+  <div class="dm-sidebar">
+    <div class="dm-sidebar-header">
+      <div class="dm-sidebar-title">Direct Messages</div>
+      <input class="dm-search" id="dmSearch" placeholder="Search users..." oninput="filterUsers(this.value)"/>
+    </div>
+    <div class="dm-list" id="dmList"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="dm-main" id="dmMain">
+    <div class="dm-empty" id="dmEmpty">
+      <div class="dm-empty-icon">💬</div>
+      <div class="dm-empty-text">Select a user to start chatting</div>
+    </div>
+
+    <div id="dmConvo" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="dm-header">
+        <div class="dm-header-avatar" id="dmHeaderAvatar">?</div>
+        <div>
+          <div class="dm-header-name" id="dmHeaderName">—</div>
+          <div class="dm-header-status">Direct Message</div>
+        </div>
+        <div class="dm-header-right">
+          <div class="enc-badge" id="encBadge">
+            <span class="enc-dot"></span>
+            <span id="encLabel">Not Encrypted</span>
+          </div>
+          <button style="background:none;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.4);font-size:.65rem;letter-spacing:2px;text-transform:uppercase;padding:4px 12px;cursor:none;transition:all .2s;font-family:inherit;" onmouseover="this.style.color='#fff';this.style.borderColor='#fff'" onmouseout="this.style.color='rgba(255,255,255,.4)';this.style.borderColor='rgba(255,255,255,.2)'" onclick="openKeyModal()">🔑 Key</button>
+          <button style="background:none;border:1px solid rgba(255,80,80,.2);color:rgba(255,80,80,.4);font-size:.65rem;letter-spacing:2px;text-transform:uppercase;padding:4px 12px;cursor:none;transition:all .2s;font-family:inherit;" onmouseover="this.style.color='rgba(255,80,80,1)';this.style.borderColor='rgba(255,80,80,.8)'" onmouseout="this.style.color='rgba(255,80,80,.4)';this.style.borderColor='rgba(255,80,80,.2)'" onclick="clearConvo()">Clear</button>
+        </div>
+      </div>
+      <div class="dm-messages" id="dmMessages"></div>
+      <div class="dm-typing" id="dmTyping"></div>
+      <div class="dm-input-area">
+        <div class="dm-input-wrap">
+          <textarea id="dmInput" rows="1" placeholder="Message..."></textarea>
+        </div>
+        <button class="dm-send-btn" id="dmSendBtn" onclick="sendDM()">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONSTANTS ────────────────────────────────────────────
+var SUPERADMIN = 'qqq';
+
+// ── AUTH ─────────────────────────────────────────────────
+var session = JSON.parse(localStorage.getItem('lunex_session') || 'null');
+if (!session) { window.location.href = 'login.html'; }
+if (window.LunexSec && !LunexSec.validateSession(session)) { localStorage.removeItem('lunex_session'); window.location.href = 'login.html'; }
+
+function getRoles(){ return JSON.parse(localStorage.getItem('lunex_roles2') || 'null') || [{id:'superadmin',name:'Superadmin',color:'#fff',perms:{administrator:true}},{id:'admin',name:'Admin',color:'#e0e0e0',perms:{administrator:true}},{id:'member',name:'Member',color:'#555',perms:{}}]; }
+function getAssign(){ return JSON.parse(localStorage.getItem('lunex_assign') || '{}'); }
+function getUserRoleId(u){ if(u===SUPERADMIN)return 'superadmin'; return getAssign()[u]||'member'; }
+function getUserRoleObj(u){ var rid=getUserRoleId(u); return getRoles().find(function(r){return r.id===rid;})||{name:'Member',color:'#555',perms:{}}; }
+function isAdmin(u){ var r=getUserRoleObj(u); return !!(r.perms&&(r.perms.administrator||r.perms.view_admin))||u===SUPERADMIN; }
+
+// ── BAN CHECK ─────────────────────────────────────────────
+if (getUserRoleId(session.username) === 'banned') {
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:rgba(255,80,80,.8);font-family:monospace;font-size:1rem;letter-spacing:4px;text-transform:uppercase;flex-direction:column;gap:16px;cursor:none;"><div>You are banned from messaging</div><a href="dashboard.html" style="color:rgba(255,255,255,.3);font-size:.7rem;text-decoration:none;letter-spacing:3px;">Back to Dashboard</a></div>';
+  throw new Error('banned');
+}
+
+// Nav setup
+document.getElementById('navUser').textContent = session.username;
+var myRole = getUserRoleObj(session.username);
+var badge = document.getElementById('navBadge');
+badge.textContent = myRole.name.toUpperCase();
+badge.style.color = myRole.color;
+badge.style.borderColor = myRole.color + '44';
+if (isAdmin(session.username)) document.getElementById('adminLink').style.display = 'inline';
+
+// ── CRYPTO ENGINE ─────────────────────────────────────────
+// AES-256-GCM via Web Crypto API
+// Key is derived from a shared passphrase using PBKDF2
+
+var currentKey = null;       // CryptoKey object
+var currentKeyRaw = null;    // base64 string for display/export
+var currentPartner = null;   // username of open DM
+
+// Derive AES key from passphrase + salt
+async function deriveKey(passphrase, salt) {
+  var enc = new TextEncoder();
+  var keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(passphrase), { name: 'PBKDF2' }, false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: enc.encode(salt), iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt', 'decrypt']
+  );
+}
+
+// Export key to base64
+async function exportKey(key) {
+  var raw = await crypto.subtle.exportKey('raw', key);
+  return btoa(String.fromCharCode(...new Uint8Array(raw)));
+}
+
+// Import key from base64
+async function importKeyFromB64(b64) {
+  var raw = Uint8Array.from(atob(b64), function(c){ return c.charCodeAt(0); });
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+}
+
+// Encrypt plaintext → base64 ciphertext (iv prepended)
+async function encrypt(text, key) {
+  var enc = new TextEncoder();
+  var iv = crypto.getRandomValues(new Uint8Array(12));
+  var cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(text));
+  var combined = new Uint8Array(iv.byteLength + cipher.byteLength);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(cipher), iv.byteLength);
+  return btoa(String.fromCharCode(...combined));
+}
+
+// Decrypt base64 ciphertext → plaintext
+async function decrypt(b64, key) {
+  try {
+    var combined = Uint8Array.from(atob(b64), function(c){ return c.charCodeAt(0); });
+    var iv = combined.slice(0, 12);
+    var cipher = combined.slice(12);
+    var plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, cipher);
+    return new TextDecoder().decode(plain);
+  } catch(e) {
+    return null; // decryption failed (wrong key)
+  }
+}
+
+// ── KEY STORAGE ───────────────────────────────────────────
+// Keys stored per conversation pair: lunex_dmkey_user1_user2
+function getKeyStorageId(a, b) {
+  return 'lunex_dmkey_' + [a, b].sort().join('_');
+}
+function saveKeyForConvo(partner, b64key) {
+  localStorage.setItem(getKeyStorageId(session.username, partner), b64key);
+}
+function loadKeyForConvo(partner) {
+  return localStorage.getItem(getKeyStorageId(session.username, partner));
+}
+
+// ── KEY MODAL ─────────────────────────────────────────────
+function openKeyModal() {
+  var saved = loadKeyForConvo(currentPartner);
+  document.getElementById('keyInput').value = saved || '';
+  document.getElementById('keyDisplay').style.display = 'none';
+  document.getElementById('keyDisplay').textContent = '';
+  document.getElementById('keyError').classList.remove('show');
+  document.getElementById('keyModal').classList.add('show');
+}
+function closeKeyModal() {
+  document.getElementById('keyModal').classList.remove('show');
+}
+document.getElementById('keyModal').addEventListener('click', function(e) {
+  if (e.target === this) closeKeyModal();
+});
+
+async function generateKey() {
+  // Generate random 256-bit key
+  var raw = crypto.getRandomValues(new Uint8Array(32));
+  var b64 = btoa(String.fromCharCode(...raw));
+  document.getElementById('keyInput').value = b64;
+  document.getElementById('keyDisplay').textContent = b64;
+  document.getElementById('keyDisplay').style.display = 'block';
+  document.getElementById('keyError').classList.remove('show');
+}
+
+async function applyKey() {
+  var b64 = document.getElementById('keyInput').value.trim();
+  if (!b64) { showKeyError('Enter or generate a key first.'); return; }
+  try {
+    var key = await importKeyFromB64(b64);
+    currentKey = key;
+    currentKeyRaw = b64;
+    saveKeyForConvo(currentPartner, b64);
+    closeKeyModal();
+    updateEncBadge(true);
+    renderDMMessages();
+    burst();
+  } catch(e) {
+    showKeyError('Invalid key format. Generate a new one.');
+  }
+}
+
+function showKeyError(msg) {
+  var el = document.getElementById('keyError');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function updateEncBadge(on) {
+  var badge = document.getElementById('encBadge');
+  var label = document.getElementById('encLabel');
+  if (on) {
+    badge.classList.add('active');
+    label.textContent = 'E2E Encrypted';
+  } else {
+    badge.classList.remove('active');
+    label.textContent = 'Not Encrypted';
+  }
+}
+
+// ── MESSAGE STORAGE ───────────────────────────────────────
+function getDMId(a, b) { return 'lunex_dm_' + [a, b].sort().join('_'); }
+function getDMs(partner) { return JSON.parse(localStorage.getItem(getDMId(session.username, partner)) || '[]'); }
+function saveDMs(partner, msgs) { localStorage.setItem(getDMId(session.username, partner), JSON.stringify(msgs)); }
+
+// ── RENDER DM LIST ────────────────────────────────────────
+var allUsers = [];
+function renderDMList(filter) {
+  allUsers = JSON.parse(localStorage.getItem('lunex_users') || '[]');
+  var others = allUsers.filter(function(u) { return u.username !== session.username; });
+  if (filter) others = others.filter(function(u) { return u.username.toLowerCase().includes(filter.toLowerCase()); });
+
+  var list = document.getElementById('dmList');
+  list.innerHTML = '';
+
+  if (!others.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;font-size:.7rem;letter-spacing:2px;color:rgba(255,255,255,.2);text-transform:uppercase;">No other users registered</div>';
+    return;
+  }
+
+  others.forEach(function(u) {
+    var msgs = getDMs(u.username);
+    var last = msgs[msgs.length - 1];
+    var role = getUserRoleObj(u.username);
+    var hasKey = !!loadKeyForConvo(u.username);
+    var isActive = currentPartner === u.username;
+
+    var item = document.createElement('div');
+    item.className = 'dm-item' + (isActive ? ' active' : '');
+    item.onclick = function() { openDM(u.username); };
+
+    var preview = '';
+    var previewClass = '';
+    if (last) {
+      if (last.encrypted) {
+        preview = hasKey ? '🔐 Encrypted message' : '🔒 [Encrypted]';
+        previewClass = 'encrypted';
+      } else {
+        preview = (last.author === session.username ? 'You: ' : '') + last.text.slice(0, 40);
+      }
+    } else {
+      preview = 'No messages yet';
+      previewClass = 'encrypted';
+    }
+
+    var timeStr = last ? formatTime(last.ts) : '';
+
+    item.innerHTML =
+      '<div class="dm-avatar" style="color:' + role.color + ';border-color:' + role.color + '44;">' + u.username.charAt(0) + '</div>' +
+      '<div class="dm-info">' +
+        '<div class="dm-name">' + u.username + '</div>' +
+        '<div class="dm-preview ' + previewClass + '">' + esc(preview) + '</div>' +
+      '</div>' +
+      '<div class="dm-meta">' +
+        (timeStr ? '<div class="dm-time">' + timeStr + '</div>' : '') +
+        (hasKey ? '<div class="dm-lock">🔐</div>' : '') +
+      '</div>';
+
+    list.appendChild(item);
+  });
+}
+
+function filterUsers(val) { renderDMList(val); }
+
+// ── OPEN DM ───────────────────────────────────────────────
+async function openDM(username) {
+  currentPartner = username;
+  currentKey = null;
+  currentKeyRaw = null;
+
+  // Try to load saved key
+  var savedKey = loadKeyForConvo(username);
+  if (savedKey) {
+    try {
+      currentKey = await importKeyFromB64(savedKey);
+      currentKeyRaw = savedKey;
+    } catch(e) { currentKey = null; }
+  }
+
+  // Show convo panel
+  document.getElementById('dmEmpty').style.display = 'none';
+  var convo = document.getElementById('dmConvo');
+  convo.style.display = 'flex';
+
+  // Update header
+  var role = getUserRoleObj(username);
+  document.getElementById('dmHeaderAvatar').textContent = username.charAt(0).toUpperCase();
+  document.getElementById('dmHeaderAvatar').style.color = role.color;
+  document.getElementById('dmHeaderName').textContent = username;
+  updateEncBadge(!!currentKey);
+
+  // Update input
+  document.getElementById('dmInput').disabled = false;
+  document.getElementById('dmSendBtn').disabled = false;
+  document.getElementById('dmInput').placeholder = 'Message ' + username + '...';
+
+  renderDMMessages();
+  renderDMList();
+
+  // Focus input
+  setTimeout(function() { document.getElementById('dmInput').focus(); }, 100);
+}
+
+// ── RENDER MESSAGES ───────────────────────────────────────
+async function renderDMMessages() {
+  if (!currentPartner) return;
+  var msgs = getDMs(currentPartner);
+  var box = document.getElementById('dmMessages');
+  var atBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 80;
+
+  if (!msgs.length) {
+    box.innerHTML = '<div class="system-dm">Start of your conversation with ' + esc(currentPartner) + '</div>';
+    if (currentKey) {
+      box.innerHTML += '<div class="system-dm">🔐 End-to-end encryption active</div>';
+    }
+    return;
+  }
+
+  var html = '';
+  var lastDate = '';
+
+  for (var i = 0; i < msgs.length; i++) {
+    var m = msgs[i];
+    var isMe = m.author === session.username;
+    var t = new Date(m.ts);
+    var ts = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+    var ds = t.toLocaleDateString();
+
+    if (ds !== lastDate) {
+      html += '<div class="system-dm">' + ds + '</div>';
+      lastDate = ds;
+    }
+
+    var displayText = '';
+    var encIcon = '';
+
+    if (m.encrypted) {
+      if (currentKey) {
+        var plain = await decrypt(m.text, currentKey);
+        if (plain !== null) {
+          displayText = esc(plain);
+          encIcon = '<span class="msg-enc-icon on" title="Decrypted with AES-256-GCM">🔐</span>';
+        } else {
+          displayText = '<span style="color:rgba(255,80,80,.6);font-style:italic;">🔒 Cannot decrypt — wrong key</span>';
+          encIcon = '<span class="msg-enc-icon">🔒</span>';
+        }
+      } else {
+        displayText = '<span style="color:rgba(255,255,255,.25);font-style:italic;">🔒 Encrypted message — set key to read</span>';
+        encIcon = '<span class="msg-enc-icon">🔒</span>';
+      }
+    } else {
+      displayText = esc(m.text);
+      encIcon = '<span class="msg-enc-icon" title="Not encrypted">📨</span>';
+    }
+
+    var role = getUserRoleObj(m.author);
+    html += '<div class="msg-row' + (isMe ? ' me' : '') + '">';
+    html += '<div class="msg-row-avatar" style="color:' + role.color + ';border-color:' + role.color + '44;">' + m.author.charAt(0) + '</div>';
+    html += '<div class="msg-row-body">';
+    html += '<div class="msg-bubble-dm' + (m.action ? ' action' : '') + '">' + displayText + '</div>';
+    html += '<div class="msg-meta-dm"><span class="msg-time-dm">' + ts + '</span>' + encIcon + '</div>';
+    html += '</div></div>';
+  }
+
+  box.innerHTML = html;
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+// ── SEND DM ───────────────────────────────────────────────
+async function sendDM() {
+  if (!currentPartner) return;
+  var input = document.getElementById('dmInput');
+  var text = input.value.trim();
+  if (!text) return;
+
+  // Security: rate limit + sanitize
+  if (window.LunexSec) {
+    var rl = LunexSec.rateLimit('dm_send', 6, 5000);
+    if (!rl.ok) { document.getElementById('dmTyping').innerHTML = '<span style="color:rgba(255,200,0,.7)">⚠ ' + rl.reason + '</span>'; return; }
+    var clean = LunexSec.sanitizeMessage(text, 2000);
+    if (!clean.ok) { document.getElementById('dmTyping').innerHTML = '<span style="color:rgba(255,80,80,.8)">⚠ ' + clean.reason + '</span>'; return; }
+    text = clean.text;
+  } else if (text.length > 2000) { return; }
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  var msgs = getDMs(currentPartner);
+  var msgObj = { author: session.username, ts: Date.now(), encrypted: false, action: false };
+
+  if (currentKey) {
+    // Encrypt the message
+    var ciphertext = await encrypt(text, currentKey);
+    msgObj.text = ciphertext;
+    msgObj.encrypted = true;
+  } else {
+    msgObj.text = text;
+    msgObj.encrypted = false;
+  }
+
+  msgs.push(msgObj);
+  saveDMs(currentPartner, msgs);
+  await renderDMMessages();
+  renderDMList();
+
+  var box = document.getElementById('dmMessages');
+  box.scrollTop = box.scrollHeight;
+
+  // Sound
+  playBeep();
+
+  // Neon pulse
+  var btn = document.getElementById('dmSendBtn');
+  btn.classList.remove('pulse');
+  void btn.offsetWidth;
+  btn.classList.add('pulse');
+  setTimeout(function() { btn.classList.remove('pulse'); }, 700);
+}
+
+function clearConvo() {
+  if (!currentPartner) return;
+  if (!confirm('Clear all messages with ' + currentPartner + '?')) return;
+  saveDMs(currentPartner, []);
+  renderDMMessages();
+  renderDMList();
+}
+
+// ── INPUT EVENTS ──────────────────────────────────────────
+document.getElementById('dmInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDM(); }
+});
+document.getElementById('dmInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  setTyping();
+});
+
+// ── TYPING INDICATOR ──────────────────────────────────────
+var typingTimer = null;
+function setTyping() {
+  if (!currentPartner) return;
+  localStorage.setItem('lunex_dm_typing', JSON.stringify({ user: session.username, ts: Date.now(), to: currentPartner }));
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(function() { localStorage.removeItem('lunex_dm_typing'); }, 2000);
+}
+function checkTyping() {
+  if (!currentPartner) return;
+  var d = JSON.parse(localStorage.getItem('lunex_dm_typing') || 'null');
+  var el = document.getElementById('dmTyping');
+  if (d && d.user !== session.username && d.to === session.username && (Date.now() - d.ts) < 2500) {
+    el.innerHTML = d.user + ' is typing <span class="tdots"><span>.</span><span>.</span><span>.</span></span>';
+  } else { el.innerHTML = ''; }
+}
+setInterval(checkTyping, 500);
+setInterval(function() { if (currentPartner) renderDMMessages(); renderDMList(); }, 3000);
+
+// ── HELPERS ───────────────────────────────────────────────
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+function formatTime(ts) {
+  var t = new Date(ts);
+  var now = new Date();
+  if (t.toDateString() === now.toDateString()) return String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+  return t.toLocaleDateString();
+}
+function playBeep() {
+  try {
+    var ac = new(window.AudioContext || window.webkitAudioContext)();
+    var o = ac.createOscillator(); var g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.frequency.setValueAtTime(880, ac.currentTime);
+    g.gain.setValueAtTime(.05, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .15);
+    o.start(); o.stop(ac.currentTime + .15);
+  } catch(e) {}
+}
+function burst() { for(var i=0;i<20;i++) spawnP(window.innerWidth/2, window.innerHeight/2); }
+
+// ── INIT ──────────────────────────────────────────────────
+renderDMList();
+
+// ── CURSOR ────────────────────────────────────────────────
+var cursor = document.getElementById('cursor'), cursorDot = document.getElementById('cursor-dot');
+var mx=0,my=0,cx=0,cy=0;
+document.addEventListener('mousemove', function(e){ mx=e.clientX; my=e.clientY; cursorDot.style.left=mx+'px'; cursorDot.style.top=my+'px'; });
+(function ac(){ cx+=(mx-cx)*.15; cy+=(my-cy)*.15; cursor.style.left=cx+'px'; cursor.style.top=cy+'px'; requestAnimationFrame(ac); })();
+document.querySelectorAll('button,textarea,a,input').forEach(function(el){
+  el.addEventListener('mouseenter', function(){ cursor.style.transform='translate(-50%,-50%) scale(2)'; cursor.style.background='rgba(255,255,255,.12)'; });
+  el.addEventListener('mouseleave', function(){ cursor.style.transform='translate(-50%,-50%) scale(1)'; cursor.style.background='transparent'; });
+});
+
+// ── PARTICLES ─────────────────────────────────────────────
+document.addEventListener('click', function(e){
+  var r=document.createElement('div'); r.className='ripple'; r.style.left=e.clientX+'px'; r.style.top=e.clientY+'px'; document.body.appendChild(r); setTimeout(function(){r.remove();},600);
+  for(var i=0;i<5;i++) spawnP(e.clientX, e.clientY);
+});
+function spawnP(x,y){
+  var p=document.createElement('div'); p.className='particle';
+  var s=Math.random()*5+2, a=Math.random()*Math.PI*2, d=Math.random()*70+20;
+  p.style.cssText='left:'+x+'px;top:'+y+'px;width:'+s+'px;height:'+s+'px;background:rgba(255,255,255,'+(Math.random()*.6+.3)+');box-shadow:0 0 5px #fff;--tx:'+(Math.cos(a)*d)+'px;--ty:'+(Math.sin(a)*d)+'px;';
+  document.body.appendChild(p); setTimeout(function(){p.remove();},800);
+}
+
+// ── STARFIELD ─────────────────────────────────────────────
+var canvas=document.getElementById('starfield'), ctx=canvas.getContext('2d');
+var stars=[],W,H;
+function resize(){ W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); }
+resize(); window.addEventListener('resize',resize);
+for(var i=0;i<120;i++) stars.push({x:Math.random()*2000-1000,y:Math.random()*2000-1000,z:Math.random()*1000});
+(function ds(){
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  stars.forEach(function(s){
+    s.z-=1.2; if(s.z<=0){s.z=1000;s.x=Math.random()*2000-1000;s.y=Math.random()*2000-1000;}
+    var sx=(s.x/s.z)*W+W/2, sy=(s.y/s.z)*H+H/2, r=Math.max(.1,(1-s.z/1000)*2), al=1-s.z/1000;
+    ctx.beginPath(); ctx.arc(sx,sy,r,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,'+al+')'; ctx.fill();
+  });
+  requestAnimationFrame(ds);
+})();
+</script>
+<script src="transition.js"></script>
+</body>
+</html>

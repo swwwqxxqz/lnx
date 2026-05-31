@@ -1,0 +1,608 @@
+﻿
+<!DOCTYPE html>
+<html lang="en" style="background:#000;color-scheme:dark;">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Lunex · Admin</title>
+<script src="security.js"></script>
+<style>
+html,body{background:#000!important;margin:0;padding:0;cursor:none!important;}
+*,*::before,*::after{box-sizing:border-box;cursor:none!important;}
+body{font-family:'Segoe UI',sans-serif;background:#000!important;color:#fff;min-height:100vh;cursor:none;}
+canvas{position:fixed;inset:0;z-index:0;background:#000!important;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);pointer-events:none;z-index:1;}
+#cursor{width:20px;height:20px;border:2px solid #fff;border-radius:50%;position:fixed;pointer-events:none;transform:translate(-50%,-50%);transition:transform .12s,background .2s;z-index:9999;box-shadow:0 0 10px #fff,0 0 20px #fff;}
+#cursor-dot{width:5px;height:5px;background:#fff;border-radius:50%;position:fixed;pointer-events:none;transform:translate(-50%,-50%);z-index:9999;box-shadow:0 0 8px #fff;}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:14px 36px;background:rgba(0,0,0,.92);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.08);}
+.nav-logo{font-size:1.2rem;font-weight:900;letter-spacing:8px;text-transform:uppercase;color:#fff;text-shadow:0 0 10px #fff,0 0 30px rgba(255,255,255,.4);}
+.nav-links{display:flex;gap:20px;}
+.nav-links a{color:rgba(255,255,255,.4);text-decoration:none;font-size:.72rem;letter-spacing:3px;text-transform:uppercase;transition:color .2s;cursor:none;}
+.nav-links a:hover,.nav-links a.active{color:#fff;text-shadow:0 0 8px #fff;}
+.nav-right{display:flex;align-items:center;gap:12px;}
+.nav-user{font-size:.72rem;letter-spacing:3px;color:rgba(255,255,255,.3);text-transform:uppercase;}
+.nav-user span{color:#fff;}
+.btn-xs{padding:7px 18px;font-size:.68rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;border:1px solid rgba(255,255,255,.25);background:transparent;color:rgba(255,255,255,.5);cursor:none;transition:all .2s;font-family:inherit;}
+.btn-xs:hover{border-color:#fff;color:#fff;box-shadow:0 0 12px rgba(255,255,255,.15);}
+/* LAYOUT */
+.layout{display:flex;min-height:100vh;padding-top:56px;}
+.sidebar{width:200px;border-right:1px solid rgba(255,255,255,.07);background:rgba(0,0,0,.7);position:fixed;top:56px;bottom:0;left:0;z-index:50;display:flex;flex-direction:column;padding:20px 0;}
+.sidebar-item{padding:10px 20px;font-size:.72rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.35);cursor:none;transition:all .2s;border-left:2px solid transparent;}
+.sidebar-item:hover{color:rgba(255,255,255,.7);background:rgba(255,255,255,.03);}
+.sidebar-item.active{color:#fff;border-left-color:#fff;background:rgba(255,255,255,.04);text-shadow:0 0 8px #fff;}
+.content{margin-left:200px;padding:36px 40px 60px;position:relative;z-index:2;flex:1;}
+/* TABS */
+.tab-panel{display:none;} .tab-panel.active{display:block;}
+/* HEADINGS */
+.page-tag{font-size:.6rem;letter-spacing:6px;text-transform:uppercase;color:rgba(255,255,255,.2);margin-bottom:8px;}
+.page-title{font-size:clamp(1.6rem,3vw,2.6rem);font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#fff;text-shadow:0 0 10px #fff,0 0 30px rgba(255,255,255,.25);margin-bottom:6px;}
+.page-sub{font-size:.72rem;letter-spacing:3px;color:rgba(255,255,255,.2);text-transform:uppercase;margin-bottom:36px;}
+.sec-title{font-size:.68rem;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:14px;display:flex;align-items:center;gap:14px;}
+.sec-title::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.07);}
+/* CARDS */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:40px;}
+.stat-box{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);padding:20px 16px;transition:border-color .2s;}
+.stat-box:hover{border-color:rgba(255,255,255,.25);}
+.stat-box .lbl{font-size:.58rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.22);margin-bottom:6px;}
+.stat-box .val{font-size:1.8rem;font-weight:900;color:#fff;text-shadow:0 0 8px #fff,0 0 20px rgba(255,255,255,.25);}
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;margin-bottom:40px;}
+.tbl th{font-size:.58rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.22);padding:9px 14px;text-align:left;border-bottom:1px solid rgba(255,255,255,.07);}
+.tbl td{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.04);font-size:.82rem;vertical-align:middle;}
+.tbl tr:hover td{background:rgba(255,255,255,.02);}
+/* ROLE BADGE */
+.rbadge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:.6rem;letter-spacing:2px;text-transform:uppercase;border:1px solid;font-weight:700;}
+.rbadge .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+/* BUTTONS */
+.btn{padding:8px 20px;font-size:.68rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;border:1px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.5);cursor:none;transition:all .2s;font-family:inherit;margin-right:4px;}
+.btn:hover{border-color:#fff;color:#fff;box-shadow:0 0 12px rgba(255,255,255,.1);}
+.btn.danger{border-color:rgba(255,80,80,.3);color:rgba(255,80,80,.6);}
+.btn.danger:hover{border-color:rgba(255,80,80,.9);color:rgba(255,80,80,1);box-shadow:0 0 10px rgba(255,80,80,.2);}
+.btn.primary{border-color:rgba(255,255,255,.5);color:#fff;box-shadow:0 0 8px rgba(255,255,255,.1);}
+.btn.primary:hover{box-shadow:0 0 20px rgba(255,255,255,.2);}
+.btn:disabled{opacity:.2;pointer-events:none;}
+/* INPUTS */
+input[type=text],input[type=color],select,textarea{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:#fff;padding:9px 13px;font-size:.82rem;outline:none;font-family:inherit;transition:border-color .2s,box-shadow .2s;width:100%;cursor:none;}
+input[type=text]:focus,select:focus,textarea:focus{border-color:rgba(255,255,255,.45);box-shadow:0 0 10px rgba(255,255,255,.06);}
+input[type=text]::placeholder,textarea::placeholder{color:rgba(255,255,255,.2);}
+input[type=color]{width:44px;height:36px;padding:2px;cursor:none;border-radius:0;}
+select option{background:#111;color:#fff;}
+label{font-size:.62rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.3);display:block;margin-bottom:6px;}
+.field{margin-bottom:16px;}
+/* ROLE EDITOR */
+.role-editor-wrap{display:grid;grid-template-columns:260px 1fr;gap:24px;margin-bottom:40px;}
+.role-list-panel{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);padding:0;}
+.role-list-item{padding:12px 16px;display:flex;align-items:center;gap:10px;cursor:none;border-bottom:1px solid rgba(255,255,255,.05);transition:background .15s;}
+.role-list-item:hover{background:rgba(255,255,255,.04);}
+.role-list-item.selected{background:rgba(255,255,255,.06);border-left:2px solid #fff;}
+.role-list-item .rname{font-size:.8rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;flex:1;}
+.role-list-item .rmembers{font-size:.6rem;color:rgba(255,255,255,.25);letter-spacing:1px;}
+.role-detail-panel{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);padding:28px;}
+.role-detail-panel h3{font-size:.68rem;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:20px;}
+/* PERMISSIONS */
+.perm-group{margin-bottom:24px;}
+.perm-group-title{font-size:.62rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.06);}
+.perm-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.03);}
+.perm-info{flex:1;}
+.perm-name{font-size:.78rem;font-weight:600;color:rgba(255,255,255,.8);}
+.perm-desc{font-size:.65rem;color:rgba(255,255,255,.3);margin-top:2px;}
+/* TOGGLE */
+.toggle{position:relative;width:40px;height:22px;flex-shrink:0;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;inset:0;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:22px;cursor:none;transition:all .2s;}
+.toggle-slider::before{content:'';position:absolute;width:16px;height:16px;left:2px;top:2px;background:rgba(255,255,255,.4);border-radius:50%;transition:all .2s;}
+.toggle input:checked + .toggle-slider{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.5);box-shadow:0 0 8px rgba(255,255,255,.2);}
+.toggle input:checked + .toggle-slider::before{transform:translateX(18px);background:#fff;box-shadow:0 0 6px #fff;}
+/* MSG */
+.msg{font-size:.72rem;letter-spacing:2px;padding:10px 14px;margin-bottom:16px;display:none;}
+.msg.error{border:1px solid rgba(255,80,80,.3);background:rgba(255,80,80,.05);color:rgba(255,120,120,.9);}
+.msg.success{border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.03);color:#fff;text-shadow:0 0 8px #fff;}
+.msg.show{display:block;}
+/* LOG */
+.log-item{display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);margin-bottom:6px;font-size:.75rem;}
+.log-dot{width:5px;height:5px;border-radius:50%;background:#fff;box-shadow:0 0 5px #fff;flex-shrink:0;}
+.log-time{color:rgba(255,255,255,.2);font-size:.62rem;width:70px;flex-shrink:0;}
+.log-text{color:rgba(255,255,255,.55);flex:1;}
+.log-text strong{color:#fff;}
+/* NEW ROLE FORM */
+.new-role-form{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);padding:24px;margin-bottom:24px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;}
+/* PARTICLES */
+.particle{position:fixed;pointer-events:none;border-radius:50%;z-index:9998;animation:pFly .8s ease-out forwards;}
+@keyframes pFly{0%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0;}}
+footer{position:relative;z-index:2;text-align:center;padding:24px;border-top:1px solid rgba(255,255,255,.05);font-size:.62rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.12);}
+footer span{color:rgba(255,255,255,.35);text-shadow:0 0 6px #fff;}
+@keyframes slideIn{from{opacity:0;}to{opacity:1;}}
+body.page-enter{animation:slideIn .35s ease both;}
+</style>
+</head>
+<body style="background:#000;" class="page-enter">
+<div id="page-transition" style="position:fixed;inset:0;background:#000;z-index:99999;pointer-events:none;opacity:0;transition:opacity .35s cubic-bezier(.4,0,.2,1);"></div>
+<canvas id="starfield"></canvas>
+<div id="cursor"></div>
+<div id="cursor-dot"></div>
+<nav>
+  <div class="nav-logo">Lunex</div>
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="chat.html">Chat</a>
+    <a href="admin.html" class="active">Admin</a>
+  </div>
+  <div class="nav-right">
+    <div class="nav-user">Logged in as <span id="navUser">—</span></div>
+    <button class="btn-xs" onclick="logout()">Log Out</button>
+  </div>
+</nav>
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-item active" onclick="showTab('users',this)">👥 Users</div>
+    <div class="sidebar-item" onclick="showTab('roles',this)">🎭 Roles</div>
+    <div class="sidebar-item" onclick="showTab('log',this)">📋 Audit Log</div>
+  </div>
+  <div class="content">
+    <!-- USERS TAB -->
+    <div class="tab-panel active" id="tab-users">
+      <div class="page-tag">Admin Panel</div>
+      <div class="page-title">User Management</div>
+      <div class="page-sub">Assign roles and manage members</div>
+      <div class="stats-row" id="statsRow"></div>
+      <div class="msg" id="userMsg"></div>
+      <div class="sec-title">All Users</div>
+      <table class="tbl">
+        <thead><tr><th>Username</th><th>Email</th><th>Joined</th><th>Role</th><th>Actions</th></tr></thead>
+        <tbody id="userTbody"></tbody>
+      </table>
+    </div>
+    <!-- ROLES TAB -->
+    <div class="tab-panel" id="tab-roles">
+      <div class="page-tag">Admin Panel</div>
+      <div class="page-title">Role Manager</div>
+      <div class="page-sub">Create roles and configure permissions like Discord</div>
+      <div class="msg" id="roleMsg"></div>
+      <div class="sec-title">Create New Role</div>
+      <div class="new-role-form">
+        <div class="form-row">
+          <div class="field" style="margin:0;">
+            <label>Role Name</label>
+            <input type="text" id="newRoleName" placeholder="e.g. VIP, Staff, Booster..."/>
+          </div>
+          <div class="field" style="margin:0;">
+            <label>Color</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="color" id="newRoleColor" value="#ffffff"/>
+              <input type="text" id="newRoleColorHex" value="#ffffff" style="width:90px;" oninput="syncColorFromHex()"/>
+            </div>
+          </div>
+          <div style="padding-bottom:0;">
+            <button class="btn primary" onclick="createRole()">+ Create Role</button>
+          </div>
+        </div>
+      </div>
+      <div class="sec-title">Manage Roles</div>
+      <div class="role-editor-wrap">
+        <div class="role-list-panel" id="roleListPanel"></div>
+        <div class="role-detail-panel" id="roleDetailPanel">
+          <div style="color:rgba(255,255,255,.2);font-size:.8rem;letter-spacing:2px;text-align:center;padding:40px 0;">Select a role to edit permissions</div>
+        </div>
+      </div>
+    </div>
+    <!-- LOG TAB -->
+    <div class="tab-panel" id="tab-log">
+      <div class="page-tag">Admin Panel</div>
+      <div class="page-title">Audit Log</div>
+      <div class="page-sub">All admin actions recorded here</div>
+      <div class="sec-title">Recent Actions</div>
+      <div id="auditLogEl"></div>
+    </div>
+  </div>
+</div>
+<footer>Created by <span>Lunex</span> · Admin Panel · 2026</footer>
+
+<script>
+var SUPERADMIN = 'qqq';
+
+// ── PERMISSIONS DEFINITION ───────────────────────────────
+var PERM_GROUPS = [
+  { group: 'General', perms: [
+    { id: 'view_dashboard', name: 'View Dashboard', desc: 'Access the main dashboard' },
+    { id: 'view_chat',      name: 'View Chat',      desc: 'Read messages in chat channels' },
+    { id: 'send_messages',  name: 'Send Messages',  desc: 'Post messages in chat' },
+    { id: 'use_commands',   name: 'Use Commands',   desc: 'Use / commands in chat' },
+    { id: 'add_reactions',  name: 'Add Reactions',  desc: 'React to messages with emoji' }
+  ]},
+  { group: 'Moderation', perms: [
+    { id: 'kick_members',   name: 'Kick Members',   desc: 'Remove users from chat temporarily' },
+    { id: 'ban_members',    name: 'Ban Members',    desc: 'Permanently ban users' },
+    { id: 'manage_messages',name: 'Manage Messages',desc: 'Delete messages from other users' },
+    { id: 'mute_members',   name: 'Mute Members',   desc: 'Prevent users from sending messages' },
+    { id: 'view_audit_log', name: 'View Audit Log', desc: 'See the admin audit log' }
+  ]},
+  { group: 'Administration', perms: [
+    { id: 'manage_roles',   name: 'Manage Roles',   desc: 'Create, edit and delete roles' },
+    { id: 'assign_roles',   name: 'Assign Roles',   desc: 'Give roles to other members' },
+    { id: 'manage_channels',name: 'Manage Channels',desc: 'Create and edit chat channels' },
+    { id: 'view_admin',     name: 'Access Admin Panel', desc: 'View the admin panel' },
+    { id: 'administrator',  name: 'Administrator',  desc: 'All permissions (overrides everything)' }
+  ]}
+];
+
+// ── AUTH ─────────────────────────────────────────────────
+var session = JSON.parse(localStorage.getItem('lunex_session') || 'null');
+if (!session) { window.location.href = 'login.html'; }
+document.getElementById('navUser').textContent = session.username;
+
+// ── STORAGE HELPERS ──────────────────────────────────────
+function getUsers()  { return JSON.parse(localStorage.getItem('lunex_users')  || '[]'); }
+function getRoles()  { return JSON.parse(localStorage.getItem('lunex_roles2') || 'null') || getDefaultRoles(); }
+function saveRoles(r){ localStorage.setItem('lunex_roles2', JSON.stringify(r)); }
+function getAssign() { return JSON.parse(localStorage.getItem('lunex_assign') || '{}'); }
+function saveAssign(a){ localStorage.setItem('lunex_assign', JSON.stringify(a)); }
+function getLog()    { return JSON.parse(localStorage.getItem('lunex_audit')  || '[]'); }
+function addLog(txt) {
+  var log = getLog(); var t = new Date();
+  log.unshift({ text: txt, ts: Date.now(), by: session.username });
+  if (log.length > 100) log = log.slice(0, 100);
+  localStorage.setItem('lunex_audit', JSON.stringify(log));
+}
+
+// ── DEFAULT ROLES ────────────────────────────────────────
+function getDefaultRoles() {
+  var defaults = [
+    { id: 'superadmin', name: 'Superadmin', color: '#ffffff', perms: { administrator: true }, protected: true, position: 100 },
+    { id: 'admin',      name: 'Admin',      color: '#e0e0e0', perms: { administrator: true, manage_roles: true, assign_roles: true, view_admin: true, ban_members: true, kick_members: true, mute_members: true, manage_messages: true, view_audit_log: true, manage_channels: true, view_dashboard: true, view_chat: true, send_messages: true, use_commands: true, add_reactions: true }, protected: true, position: 90 },
+    { id: 'moderator',  name: 'Moderator',  color: '#aaaaaa', perms: { kick_members: true, mute_members: true, manage_messages: true, view_audit_log: true, view_dashboard: true, view_chat: true, send_messages: true, use_commands: true, add_reactions: true }, protected: false, position: 50 },
+    { id: 'vip',        name: 'VIP',        color: '#888888', perms: { view_dashboard: true, view_chat: true, send_messages: true, use_commands: true, add_reactions: true }, protected: false, position: 30 },
+    { id: 'member',     name: 'Member',     color: '#555555', perms: { view_dashboard: true, view_chat: true, send_messages: true, add_reactions: true }, protected: false, position: 10 },
+    { id: 'banned',     name: 'Banned',     color: '#ff4444', perms: {}, protected: false, position: 0 }
+  ];
+  saveRoles(defaults);
+  return defaults;
+}
+
+// ── GET USER ROLE OBJECT ─────────────────────────────────
+function getUserRoleId(username) {
+  if (username === SUPERADMIN) return 'superadmin';
+  var assign = getAssign();
+  return assign[username] || 'member';
+}
+function getUserRoleObj(username) {
+  var rid = getUserRoleId(username);
+  var roles = getRoles();
+  return roles.find(function(r){ return r.id === rid; }) || roles.find(function(r){ return r.id === 'member'; });
+}
+function hasPerm(username, perm) {
+  var role = getUserRoleObj(username);
+  if (!role) return false;
+  return !!(role.perms.administrator || role.perms[perm]);
+}
+
+// ── ACCESS CHECK ─────────────────────────────────────────
+if (!hasPerm(session.username, 'view_admin') && session.username !== SUPERADMIN) {
+  alert('Access denied.');
+  window.location.href = 'dashboard.html';
+}
+
+// Bootstrap superadmin assignment
+(function(){
+  var assign = getAssign();
+  assign[SUPERADMIN] = 'superadmin';
+  saveAssign(assign);
+})();
+
+// ── TABS ─────────────────────────────────────────────────
+function showTab(id, el) {
+  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.sidebar-item').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById('tab-' + id).classList.add('active');
+  if (el) el.classList.add('active');
+  if (id === 'users') renderUsers();
+  if (id === 'roles') renderRoleList();
+  if (id === 'log')   renderLog();
+}
+
+// ── STATS ────────────────────────────────────────────────
+function renderStats() {
+  var users = getUsers();
+  var roles = getRoles();
+  var counts = {};
+  roles.forEach(function(r){ counts[r.id] = 0; });
+  users.forEach(function(u){ var rid = getUserRoleId(u.username); counts[rid] = (counts[rid]||0)+1; });
+  var html = '<div class="stat-box"><div class="lbl">Total Users</div><div class="val">' + users.length + '</div></div>';
+  roles.forEach(function(r){
+    html += '<div class="stat-box"><div class="lbl">' + r.name + '</div><div class="val" style="color:' + r.color + ';text-shadow:0 0 8px ' + r.color + '40;">' + (counts[r.id]||0) + '</div></div>';
+  });
+  document.getElementById('statsRow').innerHTML = html;
+}
+
+// ── USERS TABLE ──────────────────────────────────────────
+function renderUsers() {
+  renderStats();
+  var users = getUsers();
+  var roles = getRoles();
+  var assign = getAssign();
+  var tbody = document.getElementById('userTbody');
+  tbody.innerHTML = '';
+  var myRoleObj = getUserRoleObj(session.username);
+  var myPos = myRoleObj ? myRoleObj.position : 0;
+
+  users.forEach(function(u) {
+    var rid = getUserRoleId(u.username);
+    var roleObj = roles.find(function(r){ return r.id === rid; }) || { name: rid, color: '#555', perms: {} };
+    var isMe = u.username === session.username;
+    var isSuperadmin = u.username === SUPERADMIN;
+    var targetPos = roleObj.position || 0;
+    var canEdit = !isSuperadmin && (session.username === SUPERADMIN || myPos > targetPos);
+
+    // Role select
+    var selectHtml = '';
+    if (canEdit) {
+      selectHtml = '<select onchange="assignRole(\'' + u.username + '\',this.value)" style="width:auto;padding:5px 10px;">';
+      roles.forEach(function(r) {
+        if (r.id === 'superadmin') return;
+        var canAssign = session.username === SUPERADMIN || (myPos > (r.position||0));
+        if (canAssign || r.id === rid) {
+          selectHtml += '<option value="' + r.id + '"' + (r.id === rid ? ' selected' : '') + '>' + r.name + '</option>';
+        }
+      });
+      selectHtml += '</select>';
+    } else {
+      selectHtml = '<span class="rbadge" style="color:' + roleObj.color + ';border-color:' + roleObj.color + '44;"><span class="dot" style="background:' + roleObj.color + ';box-shadow:0 0 5px ' + roleObj.color + ';"></span>' + roleObj.name + '</span>';
+    }
+
+    var actions = '';
+    if (canEdit && rid !== 'banned') {
+      actions += '<button class="btn danger" onclick="banUser(\'' + u.username + '\')">Ban</button>';
+    } else if (canEdit && rid === 'banned') {
+      actions += '<button class="btn" onclick="unbanUser(\'' + u.username + '\')">Unban</button>';
+    }
+    if (isMe) actions += '<span style="font-size:.58rem;letter-spacing:2px;color:rgba(255,255,255,.2);text-transform:uppercase;margin-left:6px;">YOU</span>';
+    if (isSuperadmin) actions += '<span style="font-size:.58rem;letter-spacing:2px;color:rgba(255,255,255,.5);text-transform:uppercase;margin-left:6px;">⚡ OWNER</span>';
+
+    var tr = document.createElement('tr');
+    if (isMe) tr.style.background = 'rgba(255,255,255,.02)';
+    tr.innerHTML =
+      '<td style="font-weight:700;letter-spacing:2px;">' + u.username + '</td>' +
+      '<td style="color:rgba(255,255,255,.35);font-size:.78rem;">' + u.email + '</td>' +
+      '<td style="color:rgba(255,255,255,.25);font-size:.72rem;">' + (u.joined||'—') + '</td>' +
+      '<td>' + selectHtml + '</td>' +
+      '<td>' + (actions || '<span style="color:rgba(255,255,255,.12);font-size:.7rem;">—</span>') + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function assignRole(username, roleId) {
+  var assign = getAssign();
+  var old = getUserRoleId(username);
+  assign[username] = roleId;
+  saveAssign(assign);
+  addLog('<strong>' + session.username + '</strong> changed <strong>' + username + '</strong> role: <strong>' + old + '</strong> → <strong>' + roleId + '</strong>');
+  showMsg('userMsg', username + ' is now ' + roleId, 'success');
+  renderUsers();
+  burst();
+}
+function banUser(u) {
+  if (!confirm('Ban ' + u + '?')) return;
+  assignRole(u, 'banned');
+  addLog('<strong>' + session.username + '</strong> banned <strong>' + u + '</strong>');
+}
+function unbanUser(u) {
+  assignRole(u, 'member');
+  addLog('<strong>' + session.username + '</strong> unbanned <strong>' + u + '</strong>');
+}
+
+// ── ROLE LIST ────────────────────────────────────────────
+var selectedRoleId = null;
+function renderRoleList() {
+  var roles = getRoles();
+  var assign = getAssign();
+  var users = getUsers();
+  var panel = document.getElementById('roleListPanel');
+  panel.innerHTML = '';
+
+  // Add role button at top
+  var addBtn = document.createElement('div');
+  addBtn.style.cssText = 'padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.05);';
+  addBtn.innerHTML = '<button class="btn primary" style="width:100%;" onclick="scrollToCreate()">+ New Role</button>';
+  panel.appendChild(addBtn);
+
+  roles.forEach(function(r) {
+    var count = users.filter(function(u){ return getUserRoleId(u.username) === r.id; }).length;
+    var item = document.createElement('div');
+    item.className = 'role-list-item' + (r.id === selectedRoleId ? ' selected' : '');
+    item.onclick = function(){ selectedRoleId = r.id; renderRoleList(); renderRoleDetail(r.id); };
+    item.innerHTML =
+      '<span class="dot" style="width:10px;height:10px;border-radius:50%;background:' + r.color + ';box-shadow:0 0 6px ' + r.color + ';flex-shrink:0;"></span>' +
+      '<span class="rname" style="color:' + r.color + ';">' + r.name + '</span>' +
+      '<span class="rmembers">' + count + ' member' + (count!==1?'s':'') + '</span>';
+    panel.appendChild(item);
+  });
+}
+
+function renderRoleDetail(roleId) {
+  var roles = getRoles();
+  var role = roles.find(function(r){ return r.id === roleId; });
+  if (!role) return;
+  var panel = document.getElementById('roleDetailPanel');
+  var canEdit = session.username === SUPERADMIN || (!role.protected && hasPerm(session.username, 'manage_roles'));
+
+  var html = '<h3>Editing: <span style="color:' + role.color + ';text-shadow:0 0 8px ' + role.color + '40;">' + role.name + '</span></h3>';
+
+  // Name + color
+  if (canEdit && !role.protected) {
+    html += '<div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:end;margin-bottom:20px;">';
+    html += '<div class="field" style="margin:0;"><label>Role Name</label><input type="text" id="editRoleName" value="' + role.name + '" oninput="liveUpdateRole()"/></div>';
+    html += '<div class="field" style="margin:0;"><label>Color</label><input type="color" id="editRoleColor" value="' + role.color + '" oninput="liveUpdateRole()"/></div>';
+    html += '<button class="btn primary" onclick="saveRoleEdit(\'' + roleId + '\')">Save</button>';
+    html += '</div>';
+  } else {
+    html += '<div style="margin-bottom:20px;padding:10px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);font-size:.72rem;letter-spacing:2px;color:rgba(255,255,255,.3);">This role is protected and cannot be renamed.</div>';
+  }
+
+  // Permissions
+  html += '<div style="max-height:420px;overflow-y:auto;padding-right:4px;">';
+  PERM_GROUPS.forEach(function(group) {
+    html += '<div class="perm-group"><div class="perm-group-title">' + group.group + '</div>';
+    group.perms.forEach(function(perm) {
+      var checked = !!(role.perms.administrator || role.perms[perm.id]);
+      var disabled = (!canEdit || role.id === 'superadmin') ? 'disabled' : '';
+      html += '<div class="perm-row">';
+      html += '<div class="perm-info"><div class="perm-name">' + perm.name + '</div><div class="perm-desc">' + perm.desc + '</div></div>';
+      html += '<label class="toggle"><input type="checkbox" ' + (checked?'checked':'') + ' ' + disabled + ' onchange="togglePerm(\'' + roleId + '\',\'' + perm.id + '\',this.checked)"><span class="toggle-slider"></span></label>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Delete button
+  if (canEdit && !role.protected) {
+    html += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.07);">';
+    html += '<button class="btn danger" onclick="deleteRole(\'' + roleId + '\')">Delete Role</button>';
+    html += '</div>';
+  }
+
+  panel.innerHTML = html;
+}
+
+function liveUpdateRole() {
+  // live preview color in list
+  var color = document.getElementById('editRoleColor') ? document.getElementById('editRoleColor').value : null;
+  if (color) {
+    var roles = getRoles();
+    var role = roles.find(function(r){ return r.id === selectedRoleId; });
+    if (role) { role.color = color; saveRoles(roles); renderRoleList(); }
+  }
+}
+
+function saveRoleEdit(roleId) {
+  var roles = getRoles();
+  var role = roles.find(function(r){ return r.id === roleId; });
+  if (!role) return;
+  var nameEl = document.getElementById('editRoleName');
+  var colorEl = document.getElementById('editRoleColor');
+  if (nameEl) role.name = nameEl.value.trim() || role.name;
+  if (colorEl) role.color = colorEl.value;
+  saveRoles(roles);
+  addLog('<strong>' + session.username + '</strong> edited role <strong>' + role.name + '</strong>');
+  showMsg('roleMsg', 'Role saved.', 'success');
+  renderRoleList();
+  renderRoleDetail(roleId);
+  burst();
+}
+
+function togglePerm(roleId, permId, val) {
+  var roles = getRoles();
+  var role = roles.find(function(r){ return r.id === roleId; });
+  if (!role) return;
+  if (val) role.perms[permId] = true; else delete role.perms[permId];
+  saveRoles(roles);
+  addLog('<strong>' + session.username + '</strong> ' + (val?'enabled':'disabled') + ' <strong>' + permId + '</strong> on role <strong>' + role.name + '</strong>');
+}
+
+function deleteRole(roleId) {
+  if (!confirm('Delete this role? All members will be set to Member.')) return;
+  var roles = getRoles();
+  var role = roles.find(function(r){ return r.id === roleId; });
+  roles = roles.filter(function(r){ return r.id !== roleId; });
+  saveRoles(roles);
+  // reassign users
+  var assign = getAssign();
+  Object.keys(assign).forEach(function(u){ if(assign[u]===roleId) assign[u]='member'; });
+  saveAssign(assign);
+  addLog('<strong>' + session.username + '</strong> deleted role <strong>' + role.name + '</strong>');
+  showMsg('roleMsg', 'Role deleted.', 'success');
+  selectedRoleId = null;
+  renderRoleList();
+  document.getElementById('roleDetailPanel').innerHTML = '<div style="color:rgba(255,255,255,.2);font-size:.8rem;letter-spacing:2px;text-align:center;padding:40px 0;">Select a role to edit permissions</div>';
+}
+
+function createRole() {
+  var name = document.getElementById('newRoleName').value.trim();
+  var color = document.getElementById('newRoleColor').value;
+  if (!name) { showMsg('roleMsg', 'Enter a role name.', 'error'); return; }
+  var roles = getRoles();
+  var id = 'custom_' + Date.now();
+  roles.push({ id: id, name: name, color: color, perms: { view_dashboard: true, view_chat: true, send_messages: true, add_reactions: true }, protected: false, position: 20 });
+  saveRoles(roles);
+  addLog('<strong>' + session.username + '</strong> created role <strong>' + name + '</strong>');
+  showMsg('roleMsg', 'Role "' + name + '" created!', 'success');
+  document.getElementById('newRoleName').value = '';
+  selectedRoleId = id;
+  renderRoleList();
+  renderRoleDetail(id);
+  burst();
+}
+
+function syncColorFromHex() {
+  var hex = document.getElementById('newRoleColorHex').value;
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) document.getElementById('newRoleColor').value = hex;
+}
+
+document.getElementById('newRoleColor').addEventListener('input', function(){
+  document.getElementById('newRoleColorHex').value = this.value;
+});
+
+function scrollToCreate() {
+  document.getElementById('newRoleName').focus();
+  document.getElementById('newRoleName').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── AUDIT LOG ────────────────────────────────────────────
+function renderLog() {
+  var log = getLog();
+  var el = document.getElementById('auditLogEl');
+  if (!log.length) { el.innerHTML = '<div class="log-item"><div class="log-text" style="color:rgba(255,255,255,.2);">No actions yet.</div></div>'; return; }
+  el.innerHTML = '';
+  log.forEach(function(entry) {
+    var t = new Date(entry.ts);
+    var ts = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+    var d = document.createElement('div'); d.className = 'log-item';
+    d.innerHTML = '<div class="log-dot"></div><div class="log-time">' + ts + '</div><div class="log-text">' + entry.text + '</div>';
+    el.appendChild(d);
+  });
+}
+
+// ── MSG ──────────────────────────────────────────────────
+function showMsg(id, text, type) {
+  var el = document.getElementById(id);
+  el.textContent = text; el.className = 'msg ' + type + ' show';
+  setTimeout(function(){ el.className = 'msg'; }, 3000);
+}
+
+function logout() { localStorage.removeItem('lunex_session'); window.location.href = 'login.html'; }
+
+// ── INIT ─────────────────────────────────────────────────
+renderUsers();
+
+// ── PARTICLES ────────────────────────────────────────────
+document.addEventListener('click', function(e){ for(var i=0;i<5;i++) spawnP(e.clientX,e.clientY); });
+function spawnP(x,y){
+  var p=document.createElement('div');p.className='particle';
+  var s=Math.random()*5+2,a=Math.random()*Math.PI*2,d=Math.random()*70+20;
+  p.style.cssText='left:'+x+'px;top:'+y+'px;width:'+s+'px;height:'+s+'px;background:rgba(255,255,255,'+(Math.random()*.6+.3)+');box-shadow:0 0 5px #fff;--tx:'+(Math.cos(a)*d)+'px;--ty:'+(Math.sin(a)*d)+'px;';
+  document.body.appendChild(p);setTimeout(function(){p.remove();},800);
+}
+function burst(){ for(var i=0;i<20;i++) spawnP(window.innerWidth/2,window.innerHeight/2); }
+
+// ── CURSOR ───────────────────────────────────────────────
+var cursor=document.getElementById('cursor'),cursorDot=document.getElementById('cursor-dot');
+var mx=0,my=0,cx=0,cy=0;
+document.addEventListener('mousemove',function(e){mx=e.clientX;my=e.clientY;cursorDot.style.left=mx+'px';cursorDot.style.top=my+'px';});
+(function ac(){cx+=(mx-cx)*.15;cy+=(my-cy)*.15;cursor.style.left=cx+'px';cursor.style.top=cy+'px';requestAnimationFrame(ac);})();
+document.querySelectorAll('button,a,select,input').forEach(function(el){
+  el.addEventListener('mouseenter',function(){cursor.style.transform='translate(-50%,-50%) scale(2)';cursor.style.background='rgba(255,255,255,.12)';});
+  el.addEventListener('mouseleave',function(){cursor.style.transform='translate(-50%,-50%) scale(1)';cursor.style.background='transparent';});
+});
+
+// ── STARFIELD ────────────────────────────────────────────
+var canvas=document.getElementById('starfield'),ctx=canvas.getContext('2d');
+var stars=[],W,H;
+function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);}
+resize();window.addEventListener('resize',resize);
+for(var i=0;i<120;i++)stars.push({x:Math.random()*2000-1000,y:Math.random()*2000-1000,z:Math.random()*1000});
+(function ds(){ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);stars.forEach(function(s){s.z-=1.2;if(s.z<=0){s.z=1000;s.x=Math.random()*2000-1000;s.y=Math.random()*2000-1000;}var sx=(s.x/s.z)*W+W/2,sy=(s.y/s.z)*H+H/2,r=Math.max(.1,(1-s.z/1000)*2),al=1-s.z/1000;ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,'+al+')';ctx.fill();});requestAnimationFrame(ds);})();
+
+// ── Page Transition ──────────────────────────────────────
+</script><script src="transition.js"></script>
+</body>
+</html>

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#000;color-scheme:dark;">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Lunex · Real-Time Chat</title>
+<script src="security.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{background:#000;height:100%;}
+body{font-family:'Segoe UI',sans-serif;color:#fff;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+/* Login screen */
+#authScreen{position:fixed;inset:0;background:#000;z-index:100;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;padding:20px;}
+#authScreen.hide{display:none;}
+.auth-logo{font-size:2.5rem;font-weight:900;letter-spacing:12px;text-transform:uppercase;color:#fff;text-shadow:0 0 15px #fff,0 0 50px rgba(255,255,255,.4);margin-bottom:8px;}
+.auth-tag{font-size:.7rem;letter-spacing:5px;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:30px;}
+.auth-tabs{display:flex;gap:0;width:100%;max-width:380px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:24px;}
+.auth-tab{flex:1;padding:12px;background:none;border:none;color:rgba(255,255,255,.4);font-size:.75rem;letter-spacing:3px;text-transform:uppercase;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;transition:all .2s;}
+.auth-tab.active{color:#fff;border-bottom-color:#fff;text-shadow:0 0 6px #fff;}
+.auth-form{display:none;flex-direction:column;gap:12px;width:100%;max-width:380px;}
+.auth-form.active{display:flex;}
+.auth-form input{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:#fff;padding:12px 14px;font-size:.9rem;outline:none;font-family:inherit;transition:border-color .2s;}
+.auth-form input:focus{border-color:rgba(255,255,255,.5);}
+.auth-form input::placeholder{color:rgba(255,255,255,.2);}
+.auth-form button{padding:14px;font-size:.8rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;border:1px solid #fff;background:transparent;color:#fff;cursor:pointer;font-family:inherit;transition:all .2s;margin-top:8px;}
+.auth-form button:hover{background:#fff;color:#000;box-shadow:0 0 20px rgba(255,255,255,.4);}
+.auth-msg{font-size:.72rem;letter-spacing:2px;color:rgba(255,80,80,.8);min-height:18px;margin-top:8px;text-align:center;}
+.auth-msg.ok{color:#fff;text-shadow:0 0 8px #fff;}
+
+/* Main app */
+#app{display:none;flex-direction:column;flex:1;overflow:hidden;}
+#app.show{display:flex;}
+
+nav{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:rgba(0,0,0,.95);border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;}
+.logo{font-size:1.1rem;font-weight:900;letter-spacing:6px;text-transform:uppercase;color:#fff;text-shadow:0 0 8px #fff;}
+.nav-right{display:flex;align-items:center;gap:14px;}
+.online-dot{width:7px;height:7px;border-radius:50%;background:#0f0;box-shadow:0 0 6px #0f0;animation:pulse 1.5s infinite;}
+@keyframes pulse{50%{opacity:.4;}}
+.user-info{font-size:.72rem;letter-spacing:2px;color:rgba(255,255,255,.5);text-transform:uppercase;}
+.user-info b{color:#fff;text-shadow:0 0 6px #fff;}
+.btn-logout{padding:6px 14px;font-size:.62rem;letter-spacing:2px;text-transform:uppercase;border:1px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.5);cursor:pointer;font-family:inherit;transition:all .2s;}
+.btn-logout:hover{border-color:#fff;color:#fff;}
+
+.layout{display:flex;flex:1;overflow:hidden;}
+.sidebar{width:220px;background:rgba(0,0,0,.7);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;flex-shrink:0;}
+.sec-h{padding:14px 16px 8px;font-size:.6rem;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.25);}
+.list{display:flex;flex-direction:column;}
+.list-item{padding:8px 16px;font-size:.8rem;color:rgba(255,255,255,.5);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s,color .15s;}
+.list-item:hover{background:rgba(255,255,255,.04);color:rgba(255,255,255,.85);}
+.list-item.active{background:rgba(255,255,255,.07);color:#fff;text-shadow:0 0 6px #fff;}
+.list-item .ico{color:rgba(255,255,255,.3);width:14px;}
+.list-item .ind{margin-left:auto;width:6px;height:6px;border-radius:50%;background:#0f0;box-shadow:0 0 5px #0f0;}
+
+.main{flex:1;display:flex;flex-direction:column;min-width:0;}
+.chat-head{padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.5);flex-shrink:0;}
+.chat-head-name{font-size:.85rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#fff;text-shadow:0 0 6px #fff;}
+.chat-head-topic{font-size:.7rem;color:rgba(255,255,255,.3);margin-left:6px;padding-left:10px;border-left:1px solid rgba(255,255,255,.1);}
+.live-pill{margin-left:auto;font-size:.6rem;letter-spacing:2px;color:rgba(0,255,100,.7);text-transform:uppercase;display:flex;align-items:center;gap:6px;}
+
+.messages{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:8px;}
+.messages::-webkit-scrollbar{width:4px;}
+.messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);}
+.msg{display:flex;gap:10px;padding:4px 0;}
+.msg-av{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;text-transform:uppercase;}
+.msg-body{flex:1;min-width:0;}
+.msg-meta{display:flex;gap:8px;align-items:baseline;margin-bottom:2px;}
+.msg-author{font-size:.78rem;font-weight:700;color:#fff;}
+.msg-time{font-size:.6rem;color:rgba(255,255,255,.2);}
+.msg-text{font-size:.85rem;line-height:1.6;color:rgba(255,255,255,.78);word-break:break-word;}
+.msg-text.action{color:rgba(255,255,255,.4);font-style:italic;}
+.system-msg{text-align:center;font-size:.6rem;letter-spacing:3px;color:rgba(255,255,255,.18);text-transform:uppercase;padding:6px 0;}
+
+.typing{padding:2px 18px;font-size:.62rem;letter-spacing:2px;color:rgba(255,255,255,.25);text-transform:uppercase;height:20px;flex-shrink:0;}
+.tdots span{animation:td 1s infinite;display:inline-block;}
+.tdots span:nth-child(2){animation-delay:.15s;}
+.tdots span:nth-child(3){animation-delay:.3s;}
+@keyframes td{0%,80%,100%{opacity:.2;}40%{opacity:1;}}
+
+.input-area{padding:0 18px 14px;display:flex;gap:8px;flex-shrink:0;}
+#msgInput{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#fff;padding:11px 14px;font-size:.88rem;outline:none;font-family:inherit;resize:none;line-height:1.4;max-height:100px;}
+#msgInput:focus{border-color:rgba(255,255,255,.3);}
+.send-btn{padding:11px 22px;background:transparent;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.6);font-size:.7rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:all .2s;}
+.send-btn:hover{border-color:#fff;color:#fff;box-shadow:0 0 12px rgba(255,255,255,.15);}
+
+/* Connection status */
+#connStatus{position:fixed;top:60px;right:20px;font-size:.6rem;letter-spacing:2px;text-transform:uppercase;padding:5px 10px;border:1px solid;display:none;z-index:50;}
+#connStatus.show{display:block;}
+#connStatus.connecting{color:rgba(255,200,0,.8);border-color:rgba(255,200,0,.4);}
+#connStatus.disconnected{color:rgba(255,80,80,.8);border-color:rgba(255,80,80,.4);}
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="authScreen">
+  <div class="auth-logo">Lunex</div>
+  <div class="auth-tag">Real-time chat · Powered by Socket.io</div>
+  <div class="auth-tabs">
+    <button class="auth-tab active" onclick="switchTab('login')">Login</button>
+    <button class="auth-tab" onclick="switchTab('register')">Register</button>
+  </div>
+  <form class="auth-form active" id="loginForm" onsubmit="doLogin(event)">
+    <input type="text" id="loginIdent" placeholder="Username or email" autocomplete="username" required/>
+    <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password" required/>
+    <button type="submit">Sign In</button>
+  </form>
+  <form class="auth-form" id="registerForm" onsubmit="doRegister(event)">
+    <input type="text" id="regUser" placeholder="Username (3-32 alphanumeric)" autocomplete="username" required/>
+    <input type="email" id="regEmail" placeholder="Email" autocomplete="email" required/>
+    <input type="password" id="regPass" placeholder="Password (min 6)" autocomplete="new-password" required/>
+    <button type="submit">Create Account</button>
+  </form>
+  <div class="auth-msg" id="authMsg"></div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <nav>
+    <div class="logo">Lunex</div>
+    <div class="nav-right">
+      <span class="online-dot"></span>
+      <span class="user-info">Logged in as <b id="navUser">—</b></span>
+      <button class="btn-logout" onclick="doLogout()">Log Out</button>
+    </div>
+  </nav>
+  <div id="connStatus"></div>
+
+  <div class="layout">
+    <div class="sidebar">
+      <div class="sec-h">Channels</div>
+      <div class="list" id="channelList"></div>
+      <div class="sec-h">Online (<span id="onlineCount">0</span>)</div>
+      <div class="list" id="onlineList"></div>
+    </div>
+
+    <div class="main">
+      <div class="chat-head">
+        <span style="color:rgba(255,255,255,.4)">#</span>
+        <span class="chat-head-name" id="chName">general</span>
+        <span class="chat-head-topic" id="chTopic"></span>
+        <span class="live-pill"><span class="online-dot"></span> Live</span>
+      </div>
+      <div class="messages" id="messages"></div>
+      <div class="typing" id="typing"></div>
+      <form class="input-area" onsubmit="sendMsg(event)">
+        <textarea id="msgInput" rows="1" placeholder="Message #general..." maxlength="2000"></textarea>
+        <button type="submit" class="send-btn">Send</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────
+const API = window.location.origin; // backend served from same host
+let token = localStorage.getItem('lunex_rt_token');
+let me = null;
+let socket = null;
+let currentChannel = 'general';
+let channels = [];
+let onlineSet = new Set();
+let typingTimer = null;
+let typingIndicators = {}; // username -> timestamp
+
+// ── Auth UI ────────────────────────────────────────────────
+function switchTab(which) {
+  document.querySelectorAll('.auth-tab').forEach((t, i) => t.classList.toggle('active', i === (which === 'login' ? 0 : 1)));
+  document.getElementById('loginForm').classList.toggle('active', which === 'login');
+  document.getElementById('registerForm').classList.toggle('active', which === 'register');
+  showAuthMsg('');
+}
+function showAuthMsg(text, ok) {
+  const el = document.getElementById('authMsg');
+  el.textContent = text;
+  el.className = 'auth-msg' + (ok ? ' ok' : '');
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const ident = document.getElementById('loginIdent').value.trim();
+  const password = document.getElementById('loginPass').value;
+  showAuthMsg('Signing in...', true);
+  try {
+    const r = await fetch(API + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ident, password }) });
+    const data = await r.json();
+    if (!r.ok) return showAuthMsg(data.error || 'Login failed');
+    token = data.token; me = data.user;
+    localStorage.setItem('lunex_rt_token', token);
+    onAuthenticated();
+  } catch (err) { showAuthMsg('Network error: ' + err.message); }
+}
+
+async function doRegister(e) {
+  e.preventDefault();
+  const username = document.getElementById('regUser').value.trim();
+  const email = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPass').value;
+  showAuthMsg('Creating account...', true);
+  try {
+    const r = await fetch(API + '/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, email, password }) });
+    const data = await r.json();
+    if (!r.ok) return showAuthMsg(data.error || 'Registration failed');
+    token = data.token; me = data.user;
+    localStorage.setItem('lunex_rt_token', token);
+    onAuthenticated();
+  } catch (err) { showAuthMsg('Network error: ' + err.message); }
+}
+
+function doLogout() {
+  localStorage.removeItem('lunex_rt_token');
+  if (socket) socket.disconnect();
+  location.reload();
+}
+
+// ── Auth bootstrap ─────────────────────────────────────────
+async function tryAutoLogin() {
+  if (!token) return;
+  try {
+    const r = await fetch(API + '/api/me', { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) { localStorage.removeItem('lunex_rt_token'); token = null; return; }
+    me = await r.json();
+    onAuthenticated();
+  } catch (e) { /* offline ok */ }
+}
+
+function onAuthenticated() {
+  document.getElementById('authScreen').classList.add('hide');
+  document.getElementById('app').classList.add('show');
+  document.getElementById('navUser').textContent = me.username;
+  connectSocket();
+  loadChannels();
+}
+
+// ── Socket ────────────────────────────────────────────────
+function setStatus(text, cls) {
+  const s = document.getElementById('connStatus');
+  if (!text) { s.classList.remove('show'); return; }
+  s.textContent = text; s.className = 'show ' + (cls || '');
+}
+
+function connectSocket() {
+  socket = io({ auth: { token } });
+
+  socket.on('connect', () => {
+    setStatus('');
+    socket.emit('channel:join', currentChannel);
+  });
+  socket.on('connect_error', (err) => {
+    setStatus('Connection error: ' + err.message, 'disconnected');
+  });
+  socket.on('disconnect', () => setStatus('Reconnecting...', 'connecting'));
+
+  socket.on('message:new', (msg) => {
+    if (msg.channel_id === currentChannel) appendMessage(msg);
+  });
+
+  socket.on('typing', ({ username, channelId }) => {
+    if (channelId !== currentChannel || username === me.username) return;
+    typingIndicators[username] = Date.now();
+    renderTyping();
+  });
+
+  socket.on('presence:online', (list) => {
+    onlineSet = new Set(list);
+    renderOnline();
+  });
+
+  socket.on('channel:created', (ch) => {
+    channels.push(ch);
+    renderChannels();
+  });
+}
+
+// ── Channels ──────────────────────────────────────────────
+async function loadChannels() {
+  try {
+    const r = await fetch(API + '/api/channels', { headers: { Authorization: 'Bearer ' + token } });
+    channels = await r.json();
+    renderChannels();
+    switchChannel(currentChannel);
+  } catch (e) { console.error(e); }
+}
+
+function renderChannels() {
+  const list = document.getElementById('channelList');
+  list.innerHTML = '';
+  channels.forEach(ch => {
+    if (ch.admin_only && me.role !== 'superadmin' && me.role !== 'admin') return;
+    const div = document.createElement('div');
+    div.className = 'list-item' + (ch.id === currentChannel ? ' active' : '');
+    div.innerHTML = '<span class="ico">#</span>' + escapeHtml(ch.name);
+    div.onclick = () => switchChannel(ch.id);
+    list.appendChild(div);
+  });
+}
+
+async function switchChannel(id) {
+  if (socket) {
+    socket.emit('channel:leave', currentChannel);
+    socket.emit('channel:join', id);
+  }
+  currentChannel = id;
+  const ch = channels.find(c => c.id === id);
+  if (ch) {
+    document.getElementById('chName').textContent = ch.name;
+    document.getElementById('chTopic').textContent = ch.topic || '';
+    document.getElementById('msgInput').placeholder = 'Message #' + ch.name + '...';
+  }
+  renderChannels();
+  // Load history
+  try {
+    const r = await fetch(API + '/api/messages/' + encodeURIComponent(id), { headers: { Authorization: 'Bearer ' + token } });
+    const msgs = await r.json();
+    const box = document.getElementById('messages');
+    box.innerHTML = msgs.length ? '' : '<div class="system-msg">No messages yet — start the conversation</div>';
+    msgs.forEach(m => appendMessage(m, true));
+    box.scrollTop = box.scrollHeight;
+  } catch (e) { console.error(e); }
+}
+
+// ── Messages ──────────────────────────────────────────────
+function appendMessage(m, skipScroll) {
+  const box = document.getElementById('messages');
+  const atBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 80;
+  const t = new Date(m.ts);
+  const ts = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  div.innerHTML =
+    '<div class="msg-av">' + escapeHtml(m.author.charAt(0)) + '</div>' +
+    '<div class="msg-body">' +
+      '<div class="msg-meta"><span class="msg-author">' + escapeHtml(m.author) + '</span><span class="msg-time">' + ts + '</span></div>' +
+      '<div class="msg-text' + (m.action ? ' action' : '') + '">' + escapeHtml(m.text) + '</div>' +
+    '</div>';
+  box.appendChild(div);
+  if (!skipScroll && atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function sendMsg(e) {
+  e && e.preventDefault();
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if (!text || !socket) return;
+  socket.emit('message:send', { channelId: currentChannel, text }, (resp) => {
+    if (resp && resp.error) {
+      alert('Send failed: ' + resp.error);
+    }
+  });
+  input.value = '';
+}
+
+document.getElementById('msgInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+});
+document.getElementById('msgInput').addEventListener('input', () => {
+  if (socket) socket.emit('typing', { channelId: currentChannel });
+});
+
+// ── Typing display ────────────────────────────────────────
+function renderTyping() {
+  const now = Date.now();
+  Object.keys(typingIndicators).forEach(u => { if (now - typingIndicators[u] > 2500) delete typingIndicators[u]; });
+  const users = Object.keys(typingIndicators);
+  const el = document.getElementById('typing');
+  if (!users.length) { el.innerHTML = ''; return; }
+  el.innerHTML = users.join(', ') + ' typing <span class="tdots"><span>.</span><span>.</span><span>.</span></span>';
+}
+setInterval(renderTyping, 1000);
+
+// ── Online users ──────────────────────────────────────────
+function renderOnline() {
+  document.getElementById('onlineCount').textContent = onlineSet.size;
+  const list = document.getElementById('onlineList');
+  list.innerHTML = '';
+  Array.from(onlineSet).sort().forEach(u => {
+    const div = document.createElement('div');
+    div.className = 'list-item';
+    div.innerHTML = '<span class="ico">●</span>' + escapeHtml(u);
+    list.appendChild(div);
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/\n/g,'<br>');
+}
+
+// ── Boot ──────────────────────────────────────────────────
+tryAutoLogin();
+</script>
+</body>
+</html>
